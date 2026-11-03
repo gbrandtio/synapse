@@ -1,0 +1,57 @@
+{
+ "code_meaning": {
+  "n": 266,
+  "vector": 0.906,
+  "keyword": 0.605,
+  "rrf_kw0.1": 0.898,
+  "rrf_kw0.25": 0.857,
+  "rrf_kw0.5": 0.82,
+  "rrf_kw1.0": 0.774,
+  "rerank_top12_kw0.25": 0.816,
+  "rerank_top20_kw0.25": 0.801
+ },
+ "prose": {
+  "n": 12,
+  "vector": 0.833,
+  "keyword": 0.667,
+  "rrf_kw0.1": 0.833,
+  "rrf_kw0.25": 0.833,
+  "rrf_kw0.5": 0.833,
+  "rrf_kw1.0": 0.833,
+  "rerank_top12_kw0.25": 0.917,
+  "rerank_top20_kw0.25": 0.833
+ },
+ "tickets": {
+  "n": 18,
+  "vector": 1.0,
+  "keyword": 0.889,
+  "rrf_kw0.1": 1.0,
+  "rrf_kw0.25": 1.0,
+  "rrf_kw0.5": 0.944,
+  "rrf_kw1.0": 0.944,
+  "rerank_top12_kw0.25": 1.0,
+  "rerank_top20_kw0.25": 1.0
+ },
+ "exact_code": {
+  "n": 46,
+  "vector": 1.0,
+  "keyword": 1.0,
+  "rrf_kw0.1": 1.0,
+  "rrf_kw0.25": 1.0,
+  "rrf_kw0.5": 1.0,
+  "rrf_kw1.0": 1.0,
+  "rerank_top12_kw0.25": 1.0,
+  "rerank_top20_kw0.25": 1.0
+ },
+ "exact_tickets": {
+  "n": 10,
+  "vector": 0.9,
+  "keyword": 1.0,
+  "rrf_kw0.1": 0.9,
+  "rrf_kw0.25": 0.9,
+  "rrf_kw0.5": 1.0,
+  "rrf_kw1.0": 1.0,
+  "rerank_top12_kw0.25": 1.0,
+  "rerank_top20_kw0.25": 1.0
+ }
+}

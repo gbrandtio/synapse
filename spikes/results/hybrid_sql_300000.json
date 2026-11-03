@@ -1,0 +1,27 @@
+{
+ "passages": 300000,
+ "keyword_old_rowid_in_rare": {
+  "p50_ms": 11357.1,
+  "rows": 40
+ },
+ "keyword_join_rare": {
+  "p50_ms": 4.2,
+  "rows": 40
+ },
+ "keyword_order_limit_rare": {
+  "p50_ms": 4.1,
+  "rows": 40
+ },
+ "keyword_order_limit_common": {
+  "p50_ms": 37.9,
+  "rows": 40
+ },
+ "hybrid_new_rare": {
+  "p50_ms": 105.5,
+  "rows": 40
+ },
+ "hybrid_new_common": {
+  "p50_ms": 147.5,
+  "rows": 40
+ }
+}

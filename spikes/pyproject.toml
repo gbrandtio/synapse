@@ -1,0 +1,36 @@
+[project]
+name = "synapse-spikes"
+version = "0.0.0"
+description = "Phase 0 measurements. Not shipped."
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "pydantic",
+  "langchain",
+  "langgraph",
+  "langgraph-checkpoint-sqlite",
+  "langchain-ollama",
+  "lancedb",
+  "fastembed",
+  "pypdfium2",
+  "markitdown[docx,pptx,xlsx]",
+  "dulwich",
+  "openpyxl",
+  "xlrd",
+  "defusedxml",
+  "sqlite-vec",
+  "tree-sitter",
+  "tree-sitter-python",
+  "tree-sitter-language-pack",
+  "numpy",
+  "pyarrow",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "fpdf2>=2.9.0",
+]

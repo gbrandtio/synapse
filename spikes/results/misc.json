@@ -1,0 +1,55 @@
+{
+ "pdf": {
+  "blank_page_has_no_text": true
+ },
+ "tree_sitter": {
+  "pack_mb_installed": 4.7,
+  "attrs": [
+   "ByteRange",
+   "CacheLockError",
+   "ChecksumMismatchError",
+   "ChunkContext",
+   "CodeChunk",
+   "CommentInfo",
+   "CommentKind",
+   "ConfigError",
+   "DataAttribute",
+   "DataNode",
+   "DataNodeKind",
+   "Diagnostic",
+   "DiagnosticSeverity",
+   "DocSection",
+   "DocstringFormat",
+   "DocstringInfo",
+   "DownloadError",
+   "DownloadManager",
+   "DynamicLoadError",
+   "Error",
+   "ExportInfo",
+   "ExportKind",
+   "FileMetrics",
+   "ImportInfo",
+   "InvalidRangeError",
+   "LanguageNotFoundError",
+   "LanguageRegistry",
+   "LockPoisonedError",
+   "Node",
+   "NullLanguagePointerError"
+  ],
+  "available": 0,
+  "python_parse": [
+   "function_definition",
+   "class_definition"
+  ]
+ },
+ "dulwich": {
+  "files_in_head": 15665,
+  "list_tree_s": 0.62,
+  "blobs_read": 5000,
+  "blob_mb": 70,
+  "read_blobs_s": 0.77,
+  "commits_walked": 500,
+  "walk_s": 0.41,
+  "repo_unchanged": true
+ }
+}

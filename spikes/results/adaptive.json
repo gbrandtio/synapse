@@ -1,0 +1,32 @@
+{
+ "code_meaning": {
+  "recall@6": 0.898,
+  "mrr": 0.675,
+  "n": 266,
+  "flagged_exact": 1
+ },
+ "prose": {
+  "recall@6": 0.833,
+  "mrr": 0.476,
+  "n": 12,
+  "flagged_exact": 0
+ },
+ "tickets": {
+  "recall@6": 1.0,
+  "mrr": 0.963,
+  "n": 18,
+  "flagged_exact": 3
+ },
+ "exact_code": {
+  "recall@6": 1.0,
+  "mrr": 1.0,
+  "n": 46,
+  "flagged_exact": 46
+ },
+ "exact_tickets": {
+  "recall@6": 1.0,
+  "mrr": 0.933,
+  "n": 10,
+  "flagged_exact": 10
+ }
+}
