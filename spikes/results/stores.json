@@ -1,0 +1,23 @@
+{
+ "lancedb": {
+  "write_s": 0.3,
+  "index_s": 9.6,
+  "disk_mb": 178,
+  "vector_p50_ms": 6.2,
+  "vector_p95_ms": 6.8,
+  "filtered_p50_ms": 6.8,
+  "filtered_p95_ms": 7.5,
+  "keyword_filtered_p50_ms": 3.5,
+  "recall_at_10_random_vectors": 0.17,
+  "peak_rss_mb_so_far": 1083
+ },
+ "sqlite_vec": {
+  "write_s": 0.9,
+  "disk_mb": 151,
+  "vector_p50_ms": 42.4,
+  "vector_p95_ms": 44.6,
+  "filtered_p50_ms": 25.1,
+  "filtered_p95_ms": 35.7,
+  "recall_at_10_random_vectors": 1.0
+ }
+}

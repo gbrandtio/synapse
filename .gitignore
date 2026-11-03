@@ -1,0 +1,23 @@
+# OS files
+.DS_Store
+
+# Real exports hold personal and company data. Never commit them.
+Jira*.csv
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Phase 0 downloads and generated data
+build-cache/
+spikes/.cache/
+spikes/results/raw/
+
+# Flutter and Dart
+.dart_tool/
+build/
+coverage/

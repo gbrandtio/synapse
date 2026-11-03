@@ -1,0 +1,296 @@
+# Synapse architecture overview
+
+Synapse is an MIT-licensed app that lets people with little programming knowledge add their documents, build a RAG, and create an AI agent or workflow. It also reads external sources such as GitHub and Jira, either with an API key or from just a URL or local git repo, and return structured data an agent can use.
+
+Phase 1 code exists for the Apple Silicon Mac build. These pages describe the intended design, and each section that differs from the code says what is built. Key decisions:
+
+| Topic | Decision |
+|---|---|
+| Frontend | Flutter, with Bloc for state management |
+| AI framework | LangChain and LangGraph |
+| First release | Desktop app, with data kept on the user's machine and no accounts |
+| GitHub without a key | Public content, or a local git repo for private code. No browser login |
+| Jira without a key | Public content, browser login, or an imported Excel or CSV export |
+| Offline AI | The Complete download includes the llama.cpp server, a small AI model (Gemma 3 1B), and the embedding model. The re-ranking model is planned, not yet bundled |
+| Workflow builder | Templates plus a simple list of steps, with a canvas possible later |
+| Prompts | Users can write their own prompt in every AI step |
+| RAG design | One RAG pipeline and index, with named collections per source or purpose |
+| Code signing | Left out for now |
+| External access | Always optional. Everything works offline on stored data |
+
+The other pages cover [configuration](./configuration.md), the [RAG pipeline](./rag-pipeline.md), [connectors](./connectors.md), [workflows and prompts](./workflows-and-prompts.md), and [UI and UX](./ux.md). The reasons behind major decisions are in the [ADRs](../adr/README.md).
+
+## Main idea
+
+Three choices do most of the work of keeping Synapse easy to configure and ship.
+
+1. **One installer contains everything.** The user downloads one file and needs no Python, Docker, git, separate AI server or internet connection to start.
+2. **Plain validated files describe everything.** Each collection and each assistant is a validated "blueprint" file, and every screen in the UI simply edits one. This makes sharing and upgrades straightforward.
+3. **Every source returns the same record format.** GitHub, Jira, files and web pages all share one common structure, plus declared fields per source type. The RAG and the workflows never need source-specific code.
+
+## System architecture
+
+```
+┌───────────────── Synapse desktop app (one installer) ─────────────────┐
+│                                                                       │
+│  Flutter UI ── HTTP + streaming (127.0.0.1, per-launch token) ──┐     │
+│  (starts, watches and stops the engine)                         ▼     │
+│                                                                       │
+│  Python engine (bundled runtime, FastAPI)                             │
+│  ├─ api/          REST and streaming endpoints                        │
+│  ├─ application/  ingest, ask, query records, workflows, jobs         │
+│  ├─ domain/       Blueprint, Record, Passage (no framework imports)   │
+│  └─ adapters/                                                         │
+│     ├─ connectors/  github, jira, files, web                          │
+│     ├─ parsers/     office, pdf, optional high-quality pack           │
+│     ├─ ai/          LangChain models, LangGraph workflows             │
+│     ├─ stores/      SQLite, with sqlite-vec and FTS5                  │
+│     └─ secrets/     OS keychain                                       │
+│                                                                       │
+│  Bundled model: embedding (run inside the engine)                     │
+│  Re-ranking model: not bundled for now                                │
+│  Bundled llama.cpp server and Gemma 3 1B (separate local process)     │
+└───────────────────────────────────────────────────────────────────────┘
+                                    │ optional
+                     Cloud AI, GitHub, Jira, larger local models
+```
+
+Nothing below the line is required. With the Complete download, Synapse works from its first launch with no internet connection.
+
+Phase 1 builds only part of this diagram. The PDF reader, the SQLite search store, the question graph, the embedder and the llama.cpp server process are built. Connectors, blueprints, the OS keychain, other parsers and workflows are not built yet.
+
+### Technology choices
+
+| Area | Choice | Why |
+|---|---|---|
+| Engine language | Python 3.13, managed with `uv` | LangChain and LangGraph are most complete in Python. The exact version is confirmed when wheel support is checked in Phase 0. |
+| .NET | Not used | It has no LangChain or LangGraph and would add a second backend runtime. `docs/dotnet/` stays in place but does not apply here. |
+| API | FastAPI with OpenAPI | The Dart client is generated from the API definition, so the two sides cannot silently drift apart. |
+| Streaming | Server-Sent Events, using `fastapi.sse` | It covers answer text and job progress, and FastAPI has it built in since 0.135, so no extra package is needed. |
+| Records and app data | SQLite | One file with no server to install or manage (see [ADR 0004](../adr/0004-sqlite-and-lancedb-for-desktop.md)). It stores records, fields, jobs, prompt history and LangGraph checkpoints. |
+| Search index | `sqlite-vec` and FTS5 | They keep vectors, keywords and records in one SQLite file, so one transaction covers them all (see [ADR 0015](../adr/0015-sqlite-vec-and-fts5-as-search-store.md)). |
+| Local embeddings | FastEmbed (ONNX), bundled | It runs on CPU without PyTorch, which keeps the installer small, and it does not depend on the AI server. |
+| Local AI | llama.cpp server and Gemma 3 1B, bundled in Complete | It works offline immediately. It replaces Ollama, see [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md). A copy of Ollama the user installed may be added as an option later. |
+| Spreadsheets | `openpyxl`, `xlrd` and Python's `csv` | They read cell values only, and never run macros or formulas. |
+| Cloud AI | LangChain `init_chat_model` | OpenAI, Anthropic, Google, Azure and any OpenAI-compatible server all work through one setting. |
+| Git reading | Dulwich (pure Python) | It needs no git install and never runs hooks or repo config. |
+| Flutter state | `flutter_bloc`, `bloc_concurrency`, `bloc_test` | See below. |
+| Flutter routes | `go_router` | It is widely used, and handles the double-click `.synapse` import links. |
+
+### Flutter structure with Bloc
+
+Each feature has three layers: UI widgets, then blocs, then repositories. Repositories are the only layer that calls the generated engine client, and they return `Result<T>` as `docs/flutter/CODING_STANDARDS.md` requires.
+
+- **Bloc or Cubit:** use a `Bloc` for flows driven by events, such as chat, ingestion jobs and workflow runs. Use a `Cubit` for simple state, such as settings and theme.
+- **States:** states are immutable sealed classes, so the compiler forces each screen to handle loading, success and failure.
+- **Streaming:** answer text and job progress flow from SSE streams into state through `emit.forEach`.
+- **Concurrency:** `bloc_concurrency` transformers set the behaviour per event. Pasting a new link cancels the previous `probe` (`restartable`), and pressing Sync twice starts one job (`droppable`).
+- **Scope:** `RepositoryProvider` supplies repositories at app level. `BlocProvider` creates each bloc at the screen that owns it, and global blocs are limited to engine status and active jobs.
+- **Tests:** every bloc is tested with `bloc_test` against fake repositories.
+
+### How the app starts the engine
+
+1. Flutter starts the engine with `runInShell: false`, as `docs/flutter/SECURITY.md` requires. The engine gets its own paths and a short list of system variables, such as `PATH` and `HOME`. Other variables, including proxy settings, are not passed.
+2. Flutter sends a random access token through stdin, so it never appears in process lists.
+3. The engine binds to 127.0.0.1 on port 0, so the operating system picks a free port, and reports the real port on stdout as a "ready" message.
+4. If Flutter exits, stdin closes and the engine shuts itself down, so no orphan processes remain. The engine stops within about 10 seconds at most, and stops the llama.cpp server on the way out. When the app's engine object closes, the app closes stdin, waits 5 seconds, and kills the engine if it is still running.
+5. If the engine exits unexpectedly, the app starts it again and shows a notice. Documents stay, but the current conversation is lost. The app restarts the engine up to 2 times a minute. After that it shows a Try again screen. Background jobs are planned to be stored in SQLite and resume where they stopped. Phase 1 has no background jobs.
+
+The PDF reader runs in a separate worker process. It has a 300 second time limit and a 512 MB file limit, so a corrupt PDF cannot take the engine down. Other parsers are not built yet.
+
+### How the bundled llama.cpp server runs
+
+The engine starts `llama-server` as a child process the first time a local AI answer needs it. It stops the server when the engine shuts down. The server is built from llama.cpp `v0.8.0`, as [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md) describes.
+
+- **Private port:** the server listens on 127.0.0.1 on a free port, so it does not conflict with other programs on the computer.
+- **Private key:** each launch uses a random key that only the engine knows. The key is passed in an environment variable, so process lists do not show it.
+- **Paths:** `SYNAPSE_LLAMA_BIN` points to the server program, and `SYNAPSE_AI_MODEL_FILE` points to the model file. The app sets both when it starts the engine.
+- **GPU and CPU:** the server uses the GPU first. GPU code can fail on a macOS version that has not been tested, so if the server crashes while starting, the engine retries on the CPU.
+- **Memory:** after 5 idle minutes (`--sleep-idle-seconds 300`), the server frees the model. This drops its memory from about 950 MB to about 90 MB. The model reloads on the next question.
+- **Leftover process:** the engine saves the server's process ID in `llama.pid` in the data folder. If the engine was killed, the next start stops that server on macOS, after checking that the process is still the bundled server. Windows does not do this yet.
+- **Restart:** if the server is killed, the next question starts a new one.
+- **Network use:** the smoke test fails if any DNS lookup or direct connection leaves the computer, and it runs with the internet on. This found and removed Microsoft telemetry in onnxruntime ([ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md)). The test cannot see everything, so "Nothing leaves this computer" stays a goal until a long packet capture confirms it.
+
+## Packaging, install and deployment
+
+| Platform | Format |
+|---|---|
+| macOS | `.dmg`, with separate Apple Silicon and Intel builds. The app needs macOS 14 or newer |
+| Windows | Per-user installer, with no admin rights needed |
+| Teams, later | Docker image with PostgreSQL. It must refuse to bind beyond localhost until authentication exists |
+
+**Bundling method:** ship a prebuilt `python-build-standalone` runtime with locked dependencies inside the app, rather than a PyInstaller single file. A plain folder handles ONNX and other native libraries more predictably. No published example of this exact setup inside a Flutter app was found, so Phase 0 and Phase 1 tested it on Apple Silicon. Windows and Intel Mac are untested.
+
+**What leaving out signing means for users.** The downloads page will include simple illustrated instructions for these warnings:
+
+- **macOS:** the system blocks the app the first time. The user opens System Settings, Privacy & Security, and chooses "Open Anyway".
+- **Windows:** SmartScreen shows a warning. The user chooses "More info", then "Run anyway".
+- **Antivirus:** some products may flag unsigned apps containing Python.
+- **Updates:** Synapse only notifies users of a new version and links to the download. Automatic self-updating is postponed with signing.
+
+These warnings work against the easy-install goal, so signing should return before any wide public release.
+
+Because users are told to bypass a warning, each release publishes SHA-256 checksums and GitHub build attestations, and the instructions link only to the official releases page and explain how to check a download.
+
+### Two downloads, built from the same pipeline
+
+| Download | Contains | Best for |
+|---|---|---|
+| **Synapse Complete** (default) | App, engine, llama.cpp server, Gemma 3 1B, and embedding model. The re-ranking model is added when re-ranking is built | Everyone, and especially offline use |
+| **Synapse Standard** | App, engine, embedding model, and re-ranking model once built | Cloud AI users, people who want their own Ollama later, and updates |
+
+The embedding model is in both, so search always works offline. With Standard, local models download inside the app when needed.
+
+**Licences and notices in Complete.** The build copies these files into the app:
+
+- The llama.cpp licence file (MIT), and the notices for the libraries built into the server, including cpp-httplib.
+- The Gemma notice and the Gemma Terms of Use, beside the model file.
+
+Synapse's own terms exist only as a draft, in `apps/desktop/assets/legal/TERMS.txt`. The app shows the draft under "Terms and licences". The draft has placeholders and has not had legal review. The app must not be shared until the terms are final. Until then, Complete does not meet the redistribution conditions in [ADR 0017](../adr/0017-bundled-ai-model.md), which require Synapse's own terms that include Gemma's use restrictions.
+
+### GitHub limits and how they apply
+
+| GitHub limit | Value | What Synapse does |
+|---|---|---|
+| Release asset size | Each file under 2 GiB | Every installer must be under this. The build script fails above 1.9 GiB |
+| Assets per release | Up to 1,000 | Far more than we need |
+| Total release size and bandwidth | No limit | Downloads are free to host |
+| Files in the git repository | Warning above 50 MiB | Models are never committed |
+| Git LFS | Limited by a storage and bandwidth quota | Not used |
+| Single push | 2 GiB | Not relevant, as models stay out of git |
+
+Models are never committed to git. `packaging/models.lock.yaml` lists each file with its licence, its download address and its SHA-256 hash. `packaging/fetch_models.py` downloads the files from those addresses and stops on any hash that does not match, so a build cannot silently pick up a different model. The addresses point to the Ollama registry and Hugging Face, not to GitHub release assets.
+
+GitHub's docs pages for some of these limits are old, so Phase 0 confirms them with a real upload of a file close to 2 GiB. It also checks that CI runners have the disk space for these builds.
+
+### Size budget for Complete
+
+Measured on 2026-11-03 for the Apple Silicon build.
+
+| Part | Size | Basis |
+|---|---|---|
+| Complete `.dmg`, whole app | About 1,005 MB | Measured on the Apple Silicon build, against the 1.9 GiB limit. The final size is still changing |
+| Models folder: AI model and embedding model | 897 MB installed | Measured |
+| llama.cpp server | Not measured separately | Replaces Ollama. The download falls only slightly |
+| Python runtime | 74 MB installed | Measured |
+| Python packages | 225 MB installed | Measured |
+| Windows | Unknown | Not measured. The Windows llama.cpp build is not made yet |
+
+The installed parts add up to more than the `.dmg`, because the `.dmg` is compressed. The Apple Silicon build has about 1 GB of room under the limit. The re-ranking model is not in the build, because re-ranking is not built yet.
+
+**The honest consequence:** this rules out the popular 8 GB laptop models. Reported sizes are about 1.7 GB for Gemma 3 2B, 2 GB for Llama 3.2 3B, and 2.5 GB for Phi-4 Mini. Only a very small model fits. Complete bundles Gemma 3 1B, which has no tool calling. Such a model is suitable for answering from retrieved passages, but it will be weaker at complex reasoning and agent work.
+
+**Model rules:**
+
+- **Licence:** Apache or MIT, or another licence that clearly allows redistribution.
+- **Language:** good English quality. English is the only supported language.
+- **Features:** reliable structured output, for field filters and Extract data steps.
+- **Hardware:** runs acceptably on CPU with 8 GB of memory.
+
+Phase 0 tested candidates against these rules. The table above shows measured sizes. See [Phase 0 results](../phase0/results.md#size).
+
+**One file is a firm decision.** Complete stays a single download, even though a two-file version could carry a better 2 to 3 GB model. Synapse ships the best model that fits, and people who want better answers can add a larger model or a cloud AI after installing. A larger model can be downloaded inside the app. See [ADR 0010](../adr/0010-bundled-models-and-github-limits.md).
+
+### Other packs and upgrades
+
+These optional packs download only when needed:
+
+| Pack | Downloaded when | Why it is optional |
+|---|---|---|
+| Larger local AI models | The user chooses one, and the computer has enough memory | Better answers, but too large to bundle |
+| High-quality documents (Docling) | A scanned PDF or complex tables are detected | Reported at about 1 GB or more |
+| Browser login for Jira (Playwright) | The user first needs private Jira access without a key | Only some users need it |
+
+**Upgrades:** the UI and engine always ship together, so version mismatches cannot occur. Blueprints carry a schema version and migrate automatically. The design has Complete copy the llama.cpp server and its model to the data folder on first run, so they survive updates. This copy is not built yet. The update notice therefore links to the smaller Standard download, and existing users do not download 2 GiB again.
+
+**Release pipeline:** the design uses GitHub Actions to build both downloads on Windows and macOS, because Python native libraries cannot be cross-compiled reliably. Each build is meant to be installed and smoke-tested with the network off, by adding a sample document and asking a question using the bundled model. The Mac smoke test runs with the internet on instead, and checks every connection (see [ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md)). Releases go to GitHub Releases. Phase 1 has two workflows in `.github/workflows/`. `ci.yml` runs the engine and Flutter checks on push to `main` and on pull requests. `build-mac.yml` builds and tests the Mac download when someone starts it by hand, then discards the result. The repository is public, so no build is uploaded until the terms pass legal review. Neither workflow has ever run, because nothing has been pushed yet. There is no Windows workflow.
+
+**Licence gate:** the CI workflow fails on AGPL or GPL-only dependencies. It has not run yet. This matters because PyMuPDF and PyMuPDF4LLM are AGPL or commercially licensed, which conflicts with shipping Synapse as MIT, so Synapse does not use them despite their good reviews.
+
+**Privacy:** no telemetry unless the user opts in. LangSmith tracing is off in releases, and is used only in development with test data.
+
+## Repository layout
+
+```
+synapse/
+├─ apps/desktop/          Flutter app, organised by feature
+├─ engine/                Python project (uv), src/synapse_engine/...
+├─ contracts/             OpenAPI, blueprint, record and field schemas
+├─ packaging/             Installer scripts and models.lock.yaml (no model files)
+├─ templates/             Starter blueprints
+├─ .github/workflows/     CI and release builds
+└─ docs/
+   ├─ architecture/  adr/  python/  langchain/  fastapi/  bloc/  dotnet/  flutter/
+```
+
+The engine follows the modular-monolith and Clean Architecture guidance in `docs/dotnet/architecture-principles.md`, which applies regardless of language. `import-linter` enforces in CI that `domain/` never imports frameworks.
+
+The existing `docs/flutter/` rules apply to the UI, including `Result<T>`, no `dynamic`, Isolates for heavy work, and 100% coverage, with generated code excluded. Those files are written about the `rw_git` package, so its specific names do not carry over. Read `rw_git` in those pages as "the Synapse app" when applying their general rules.
+
+## Delivery phases
+
+| Phase | Output | Done when |
+|---|---|---|
+| **0. Tests** | Answers to the risks below | Each has a written result and an ADR |
+| **1. Walking skeleton** | Complete and Standard installers: drop a PDF, ask a question, get a cited answer | Complete works on a clean machine with the network off, on Windows and macOS, and is under 2 GiB |
+| **2. Real RAG** | Collections, the full pipeline, sync, settings with descriptions, test screen | Meets recall targets set from the Phase 0 baseline |
+| **3. Connectors** | GitHub and Jira with keys and public access, local git repos, Excel and CSV import, field capture, and Query records | Same record schema passes contract tests for each, and comments and start dates work end to end from both Jira and a spreadsheet |
+| **4. Browser login** | Optional pack and session flows | Private Jira works through SSO on a test site |
+| **5. Workflows** | Step builder, custom prompts, prompt library, Agent step, templates, schedules, approvals | All five templates run end to end, and each can be rewritten with a custom prompt |
+| **6. Polish and launch** | `.synapse` sharing, accessibility, install instructions | Non-technical testers succeed unaided |
+| **Later** | Signing and auto-update, canvas, team mode with PostgreSQL, write actions, MCP, contextual retrieval, graph-based search | |
+
+**Phase 1 status.** Phase 1 is partly done. Only the Complete download for the Apple Silicon Mac is built. The Standard download is not built. The Mac build has crash recovery, an automatic model fetch, and CI files. The CI files have never run. Windows is postponed. The phase table above still requires Windows, so the project owner must decide whether that row changes. Not built yet: copying models to the data folder for updates, and a file picker, so PDFs can only be added by dragging them into the window. There is no tested Intel Mac build.
+
+**Phase 0 tests.** Research could not settle these, so they need real tests. [Phase 0 results](../phase0/results.md) records what has been answered:
+
+1. Does the bundled runtime work inside a Flutter app on Windows and macOS, and how large is the installer? It works on Apple Silicon, and its size is measured. Windows and Intel Mac are untested.
+2. How well do small English embedding and re-ranking models perform through FastEmbed? This decides the default model, and the available re-rankers are not yet confirmed.
+3. Can one embedding model serve prose, code and tickets together? This tests the one-index decision. Does the pipeline clearly beat naive RAG on sample sets of each?
+4. Does LanceDB hold up at about 100,000 passages on an ordinary laptop, with filter columns for many fields? How does SQLite plus `sqlite-vec` compare? Answered in [ADR 0015](../adr/0015-sqlite-vec-and-fts5-as-search-store.md).
+5. Is Dulwich fast enough on a large repository?
+6. Does the Jira browser session work headlessly after login, or must the window remain visible? What is the real download size of Playwright?
+7. Is the combination of `pypdfium2` and MarkItDown good enough by default, and how large is `docling-slim`?
+8. Do Tree-sitter's language packages fit the installer budget? Which common small models reliably support structured output and tools?
+9. **Bundled model:** does any model that fits the budget meet the model rules in [Size budget for Complete](#size-budget-for-complete), with acceptable answers and speed on an 8 GB computer? This picks the bundled model. Complete stays one file either way, so if no candidate is acceptable, the question goes back to the project owner.
+10. **Bundled Ollama:** what is its real size per operating system, how much do GPU libraries add, and can unneeded ones be removed safely? Does a private `OLLAMA_MODELS` folder work when pre-filled by an installer, on Windows and macOS? Can Ollama run from the data folder after being copied there, including on unsigned macOS builds? If not, Complete users must update with Complete. Ollama was replaced by the llama.cpp server, see [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md).
+11. **GitHub limits:** does a build close to 2 GiB upload and download reliably, and do GitHub Actions runners have the disk space? Do Windows and macOS installers handle a payload of this size?
+12. **Jira exports:** done, using the only export available, a Jira Cloud `.csv`. [What a real export looks like](./connectors.md#what-a-real-export-looks-like) records the results. No other samples will be collected, so tests build made-up files in that format, including filled-in start dates.
+
+**Main risks**
+
+| Risk | Response |
+|---|---|
+| The bundled model gives mediocre answers, and users judge Synapse by that first impression | Test candidates in Phase 0, ship the best that fits, and offer larger models or cloud AI on the first screen |
+| Local AI is slow on weak computers | Check memory first, and recommend cloud AI honestly when local would be poor |
+| Complete exceeds 2 GiB as parts grow | CI fails above 1.9 GiB. The response is to remove unneeded GPU libraries or choose a smaller model, because Complete stays one file |
+| Other exports may differ from the one sample, such as `.xlsx`, `.xls` or Data Center | A mapping screen the user can correct, a file preview that lists problems before importing, and tests with made-up data in the sample's format. Differences are fixed when a user reports them |
+| Security warnings put off non-technical users, since builds are unsigned | Clear illustrated install instructions, and signing returns before wide release |
+| Jira browser login breaks or is blocked by company policy | Token and spreadsheet import remain available, failures are clearly explained, and stored data keeps working |
+| One embedding model handles code poorly | Phase 0 measures this. If so, a code-specific index can be added without changing what users see |
+
+## Verification of code phases
+
+- **Engine:** `pytest`, Ruff, strict type checks, and `import-linter`.
+- **Flutter:** `dart format --line-length=80 .`, `dart analyze`, `flutter test --coverage`, and `bloc_test` for every bloc.
+- **Connectors:** contract tests against recorded responses, covering each access method, and confirming that custom fields and comments map correctly.
+- **Local repos:** tests confirm no hook or repo config runs, the repo is unchanged afterwards, and private-repo errors offer the local copy option.
+- **Spreadsheets:** exports produce the same records as the API for the same tickets. Real exports contain people's names and company data, so they are never committed, and committed test files use made-up data in the same format. Tests cover ambiguous dates, missing keys, repeated comment columns, malformed files, HTML disguised as `.xls`, and macros, which must never run.
+- **Packaging:** `packaging/fetch_models.py` verifies every model's hash, and `packaging/build_macos.sh` fails above 1.9 GiB. Checking each model's licence entry and confirming that no model files are in git are not built yet.
+- **Quality:** the RAG test set for each source type runs in CI against the naive baseline.
+- **Settings:** a test fails if any blueprint setting lacks a description, so the UI can never show an unexplained option.
+- **Prompts:** tests confirm that `{{...}}` inside source text stays as plain text, and that unknown variables are rejected before running.
+- **Offline:** Complete is installed and first launched with the network off. It can ingest files, answer questions, and run a workflow using only bundled models. A workflow whose source is unreachable follows its Fetch setting.
+- **Security:** a poisoned-document test, run with both default and custom prompts, confirms an injected instruction cannot trigger an action or a leak.
+- **End to end:** install on a clean machine, create collections from documents, a local git repo and a Jira Excel export, ask one assistant using all three, and get cited answers. Ask for tickets by start date, and get a count with its date. Then edit a step's prompt, restart mid-sync, and confirm the job resumes.
+
+## Sources
+
+- Packaging: [flutter_python_starter](https://github.com/MobilePython/flutter_python_starter), [shipping Python to end users](https://pydevtools.com/handbook/explanation/how-do-i-ship-a-python-application-to-end-users.md)
+- GitHub: [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases), [large files](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github), [Git LFS](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-git-large-file-storage), [push limit](https://docs.github.com/en/get-started/using-git/troubleshooting-the-2-gb-push-limit)
+- llama.cpp: [source repository](https://github.com/ggml-org/llama.cpp)
+- Models: [small model sizes](https://www.promptquorum.com/de/local-llms/best-beginner-local-llm-models)
+- Search index: [self-hosted vector database comparison](https://d-central.tech/self-hosted-vector-databases/), [LanceDB hybrid search](https://docs.lancedb.com/search/hybrid-search)
+- FastAPI: [Server-Sent Events](https://fastapi.tiangolo.com/tutorial/server-sent-events/)
+
+**Not yet confirmed against official sources:** PyMuPDF's licence terms, the macOS and Windows unsigned-app warnings, llama.cpp's MIT licence, and candidate model sizes and licences. Phase 0 and the licence gate check these.

@@ -1,0 +1,495 @@
+{
+ "results": [
+  {
+   "model": "BAAI/bge-small-en-v1.5",
+   "load_s": 0.1,
+   "docs_per_s": 21.0,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.906,
+      "mrr": 0.701,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.774,
+      "mrr": 0.582,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.771,
+      "mrr": 0.584,
+      "n": 266,
+      "ms_per_query": 833
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.782,
+      "mrr": 0.564,
+      "n": 266,
+      "ms_per_query": 665
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.833,
+      "mrr": 0.489,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.833,
+      "mrr": 0.55,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 964
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 787
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 1.0,
+      "mrr": 1.0,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.892,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 864
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 703
+     }
+    }
+   }
+  },
+  {
+   "model": "snowflake/snowflake-arctic-embed-xs",
+   "load_s": 9.0,
+   "docs_per_s": 54.8,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.402,
+      "mrr": 0.281,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.726,
+      "mrr": 0.49,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.748,
+      "mrr": 0.576,
+      "n": 266,
+      "ms_per_query": 830
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.744,
+      "mrr": 0.551,
+      "n": 266,
+      "ms_per_query": 628
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.667,
+      "mrr": 0.293,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.75,
+      "mrr": 0.583,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.594,
+      "n": 12,
+      "ms_per_query": 947
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 767
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 0.944,
+      "mrr": 0.823,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.92,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 774
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 637
+     }
+    }
+   }
+  },
+  {
+   "model": "sentence-transformers/all-MiniLM-L6-v2",
+   "load_s": 8.7,
+   "docs_per_s": 114.4,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.816,
+      "mrr": 0.61,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.752,
+      "mrr": 0.541,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.763,
+      "mrr": 0.582,
+      "n": 266,
+      "ms_per_query": 868
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.786,
+      "mrr": 0.564,
+      "n": 266,
+      "ms_per_query": 637
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.833,
+      "mrr": 0.478,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.75,
+      "mrr": 0.576,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.597,
+      "n": 12,
+      "ms_per_query": 955
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 777
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.893,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 820
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 652
+     }
+    }
+   }
+  },
+  {
+   "model": "jinaai/jina-embeddings-v2-small-en",
+   "load_s": 8.2,
+   "docs_per_s": 51.9,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.748,
+      "mrr": 0.559,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.741,
+      "mrr": 0.526,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.759,
+      "mrr": 0.578,
+      "n": 266,
+      "ms_per_query": 858
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.771,
+      "mrr": 0.559,
+      "n": 266,
+      "ms_per_query": 692
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.917,
+      "mrr": 0.556,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.75,
+      "mrr": 0.584,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.594,
+      "n": 12,
+      "ms_per_query": 1027
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 811
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 1.0,
+      "mrr": 0.956,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.878,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 965
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 765
+     }
+    }
+   }
+  },
+  {
+   "model": "nomic-ai/nomic-embed-text-v1.5-Q",
+   "load_s": 11.9,
+   "docs_per_s": 11.1,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.842,
+      "mrr": 0.652,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.741,
+      "mrr": 0.572,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.763,
+      "mrr": 0.579,
+      "n": 266,
+      "ms_per_query": 844
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.778,
+      "mrr": 0.559,
+      "n": 266,
+      "ms_per_query": 698
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.833,
+      "mrr": 0.598,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.833,
+      "mrr": 0.591,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 991
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.595,
+      "n": 12,
+      "ms_per_query": 827
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.892,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 969
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 748
+     }
+    }
+   }
+  },
+  {
+   "model": "BAAI/bge-base-en-v1.5",
+   "load_s": 16.4,
+   "docs_per_s": 6.7,
+   "sets": {
+    "code": {
+     "naive": {
+      "recall@6": 0.932,
+      "mrr": 0.738,
+      "n": 266
+     },
+     "hybrid": {
+      "recall@6": 0.774,
+      "mrr": 0.58,
+      "n": 266
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.771,
+      "mrr": 0.585,
+      "n": 266,
+      "ms_per_query": 922
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.782,
+      "mrr": 0.564,
+      "n": 266,
+      "ms_per_query": 707
+     }
+    },
+    "prose": {
+     "naive": {
+      "recall@6": 0.917,
+      "mrr": 0.563,
+      "n": 12
+     },
+     "hybrid": {
+      "recall@6": 0.833,
+      "mrr": 0.589,
+      "n": 12
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 0.75,
+      "mrr": 0.594,
+      "n": 12,
+      "ms_per_query": 1110
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 0.75,
+      "mrr": 0.594,
+      "n": 12,
+      "ms_per_query": 862
+     }
+    },
+    "tickets": {
+     "naive": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18
+     },
+     "hybrid": {
+      "recall@6": 0.944,
+      "mrr": 0.892,
+      "n": 18
+     },
+     "hybrid+ms-marco-MiniLM-L-6-v2": {
+      "recall@6": 1.0,
+      "mrr": 0.963,
+      "n": 18,
+      "ms_per_query": 987
+     },
+     "hybrid+jina-reranker-v1-tiny-en": {
+      "recall@6": 1.0,
+      "mrr": 0.921,
+      "n": 18,
+      "ms_per_query": 800
+     }
+    }
+   }
+  }
+ ],
+ "bm25_only": {
+  "code": {
+   "recall@6": 0.605,
+   "mrr": 0.42,
+   "n": 266
+  },
+  "prose": {
+   "recall@6": 0.667,
+   "mrr": 0.508,
+   "n": 12
+  },
+  "tickets": {
+   "recall@6": 0.889,
+   "mrr": 0.719,
+   "n": 18
+  }
+ }
+}

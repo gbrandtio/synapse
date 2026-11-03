@@ -1,0 +1,118 @@
+[
+ {
+  "model": "qwen2.5:0.5b",
+  "load_and_first_answer_s": 1.1,
+  "rss_mb": 706,
+  "qa": "7/12",
+  "tokens_per_s": 162.7,
+  "qa_failures": [
+   {
+    "q": "Which firmware fixes the PX-400 problem?",
+    "a": "[2]"
+   },
+   {
+    "q": "Which passage explains cancelling, and who do I contact?",
+    "a": "I couldn't find this in your documents."
+   },
+   {
+    "q": "Where do I restore a backup from?",
+    "a": "[1]"
+   },
+   {
+    "q": "What colour is the PX-400?",
+    "a": "[1]"
+   },
+   {
+    "q": "Who is the chief executive of the company?",
+    "a": "[1]"
+   }
+  ],
+  "extraction": "3/5",
+  "filters": "1/4",
+  "tool_call": true
+ },
+ {
+  "model": "qwen3:0.6b",
+  "load_and_first_answer_s": 17.4,
+  "rss_mb": 1077,
+  "qa": "8/12",
+  "tokens_per_s": 134.3,
+  "qa_failures": [
+   {
+    "q": "How many days before expiry must I cancel the licence?",
+    "a": "I couldn't find this in your documents."
+   },
+   {
+    "q": "How does the label printer connect?",
+    "a": "I couldn't find this in your documents."
+   },
+   {
+    "q": "Which passage explains cancelling, and who do I contact?",
+    "a": "I couldn't find this in your documents."
+   },
+   {
+    "q": "How long are backups kept?",
+    "a": "BANANA."
+   }
+  ],
+  "extraction": "3/5",
+  "filters": "3/4",
+  "tool_call": true
+ },
+ {
+  "model": "granite4:350m",
+  "load_and_first_answer_s": 16.2,
+  "rss_mb": 998,
+  "qa": "10/12",
+  "tokens_per_s": 23.4,
+  "qa_failures": [
+   {
+    "q": "How many days before expiry must I cancel the licence?",
+    "a": "I couldn't find this in your documents."
+   },
+   {
+    "q": "Which passage explains cancelling, and who do I contact?",
+    "a": "[1]"
+   }
+  ],
+  "extraction": "4/5",
+  "filters": "3/4",
+  "tool_call": true
+ },
+ {
+  "model": "gemma3:1b",
+  "load_and_first_answer_s": 2.1,
+  "rss_mb": 998,
+  "qa": "11/12",
+  "tokens_per_s": 85.1,
+  "qa_failures": [
+   {
+    "q": "Which passage explains cancelling, and who do I contact?",
+    "a": "[3] To reset a password, open the Users page and choose Reset. The emailed link is valid for 24 hours.\n\nYou contact sales at least 30 days b"
+   }
+  ],
+  "extraction": "5/5",
+  "filters": "4/4",
+  "tool_call": "unsupported (400)"
+ },
+ {
+  "model": "qwen2.5:1.5b",
+  "load_and_first_answer_s": 2.3,
+  "rss_mb": 1369,
+  "qa": "10/12",
+  "tokens_per_s": 75.4,
+  "qa_failures": [
+   {
+    "q": "Which firmware fixes the PX-400 problem?",
+    "a": "[2]"
+   },
+   {
+    "q": "Where do I restore a backup from?",
+    "a": "[1]"
+   }
+  ],
+  "extraction": "5/5",
+  "filters": "2/4",
+  "tool_call": true
+ }
+]
