@@ -13,6 +13,7 @@ __pycache__/
 .pytest_cache/
 
 # Phase 0 downloads and generated data
+build-cache/
 spikes/.cache/
 spikes/results/raw/
 

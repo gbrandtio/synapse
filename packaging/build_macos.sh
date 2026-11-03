@@ -1,26 +1,24 @@
 #!/bin/zsh
 # Build a Synapse Complete .dmg for this Mac's architecture.
 #
-#   packaging/build_macos.sh <llama dir> <fastembed cache> <model file> <gemma terms file>
+#   packaging/build_macos.sh <llama dir> <models dir>
 #
-# The llama folder comes from build_llama_macos.sh. CI will fetch and verify the models from
-# packaging/models.lock.yaml. This stops if the result is above the 1.9 GiB limit.
+# The llama folder comes from build_llama_macos.sh. Models are downloaded into the models folder if
+# needed, and checked against packaging/models.lock.yaml. This stops if the result is above the
+# 1.9 GiB limit.
 set -euo pipefail
 setopt null_glob
 ROOT=${0:A:h:h}
-LLAMA_DIR=${1:A}; EMBEDDING_DIR=${2:A}; MODEL_FILE=${3:A}; GEMMA_TERMS=${4:A}
+LLAMA_DIR=${1:A}; MODELS_DIR=${2:A}
 LIMIT_BYTES=$((1900 * 1024 * 1024 * 1024 / 1000))
 MIN_MACOS=14.0  # sqlite-vec and onnxruntime have no wheels for anything older.
 
-MODEL_SHA=$(sed -n 's/^ *sha256: //p' "$ROOT/packaging/models.lock.yaml")
-[[ "$(shasum -a 256 "$MODEL_FILE" | cut -d' ' -f1)" == "$MODEL_SHA" ]] || { echo "Model file does not match models.lock.yaml"; exit 1; }
-[[ "$(head -c 18 "$GEMMA_TERMS")" == "Gemma Terms of Use" ]] || { echo "Not the Gemma terms: $GEMMA_TERMS"; exit 1; }
 
 cd "$ROOT/apps/desktop"
 flutter build macos --release
-APP="$ROOT/apps/desktop/build/macos/Build/Products/Release/synapse_desktop.app"
+APP="$ROOT/apps/desktop/build/macos/Build/Products/Release/Synapse.app"
 RES="$APP/Contents/Resources/engine"
-rm -rf "$RES"; mkdir -p "$RES/models"
+rm -rf "$RES"; mkdir -p "$RES"
 
 # The Python runtime, without its test suite and other parts the engine never uses.
 PYTHON_HOME=$(uv python find --managed-python 3.13 | xargs dirname | xargs dirname)
@@ -43,17 +41,15 @@ find "$RES" -type d -name __pycache__ -prune -exec rm -rf {} +
 "$RES/python/bin/python3" -I -m compileall -q "$RES/site-packages" "$RES/python/lib/python3.13" >/dev/null || true
 
 cp -R "$LLAMA_DIR" "$RES/llama"
-mkdir -p "$RES/models/embedding"
-# -L copies real files, because the model cache keeps its weights behind symlinks.
-cp -RL "$EMBEDDING_DIR"/models--Qdrant--bge-small-en-v1.5-onnx-Q "$RES/models/embedding/"
-mkdir -p "$RES/models/ai"
-cp "$MODEL_FILE" "$RES/models/ai/gemma-3-1b-Q4_K_M.gguf"
+uv run --no-project --with pyyaml==6.0.3 "$ROOT/packaging/fetch_models.py" "$MODELS_DIR" "$RES/models"
 # ADR 0017: Gemma may be redistributed only with its terms and this notice.
-cp "$GEMMA_TERMS" "$RES/models/ai/GEMMA_TERMS_OF_USE.txt"
 cp "$ROOT/packaging/GEMMA_NOTICE.txt" "$RES/models/ai/NOTICE.txt"
+# The terms promise these copies are inside the app.
+cp "$ROOT/packaging/BGE_LICENSE.txt" "$RES/models/embedding/LICENSE.txt"
+cp "$ROOT/LICENSE" "$RES/LICENSE.txt"
 
 # ADR 0019: nothing bundled may carry Microsoft's telemetry address.
-if find "$RES/site-packages" "$RES/python/lib" -type f \( -name '*.so' -o -name '*.dylib' \) -print0 | xargs -0 grep -l 'events.data.microsoft.com'; then
+if grep -rl --include='*.so' --include='*.dylib' 'events.data.microsoft.com' "$RES/site-packages" "$RES/python/lib"; then
   echo "A bundled library contains telemetry. See ADR 0019."; exit 1
 fi
 

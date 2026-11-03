@@ -1,11 +1,35 @@
-# Bundled models, pinned by source and licence. CI fills in and checks the hashes.
-# Models are never committed to git.
+# Everything the Complete download bundles besides code, pinned by address and hash.
+# packaging/fetch_models.py downloads and checks these. Models are never committed to git.
+# `path` is relative to the models folder, and the embedding path is the layout FastEmbed expects.
 embedding:
   name: BAAI/bge-small-en-v1.5
   fastembed_source: qdrant/bge-small-en-v1.5-onnx-q
   licence: MIT
+  ref_file: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/refs/main
+  revision: aa8f8b060edb00e03bfdd08813a2949946c8ba55
 ai_model:
   name: gemma-3-1b-Q4_K_M.gguf
   source: registry.ollama.ai/library/gemma3:1b  # The GGUF layer of this image, used as is.
-  sha256: 2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef
   licence: Gemma Terms of Use   # Needs the notice file and use restrictions. See ADR 0017.
+files:
+  - path: ai/gemma-3-1b-Q4_K_M.gguf
+    url: https://registry.ollama.ai/v2/library/gemma3/blobs/sha256:2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef
+    sha256: 2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef
+  - path: ai/GEMMA_TERMS_OF_USE.txt
+    url: https://registry.ollama.ai/v2/library/gemma3/blobs/sha256:dd084c7d92a3c1c14cc09ae77153b903fd2024b64a100a0cc8ec9316063d2dbc
+    sha256: dd084c7d92a3c1c14cc09ae77153b903fd2024b64a100a0cc8ec9316063d2dbc
+  - path: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/snapshots/aa8f8b060edb00e03bfdd08813a2949946c8ba55/model_optimized.onnx
+    url: https://huggingface.co/qdrant/bge-small-en-v1.5-onnx-q/resolve/aa8f8b060edb00e03bfdd08813a2949946c8ba55/model_optimized.onnx
+    sha256: 51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431
+  - path: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/snapshots/aa8f8b060edb00e03bfdd08813a2949946c8ba55/config.json
+    url: https://huggingface.co/qdrant/bge-small-en-v1.5-onnx-q/resolve/aa8f8b060edb00e03bfdd08813a2949946c8ba55/config.json
+    sha256: 13582bcf2effc85b7bf3d3f5532e686bc1c9ce86bb009d10f0ec33cbe92299dd
+  - path: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/snapshots/aa8f8b060edb00e03bfdd08813a2949946c8ba55/special_tokens_map.json
+    url: https://huggingface.co/qdrant/bge-small-en-v1.5-onnx-q/resolve/aa8f8b060edb00e03bfdd08813a2949946c8ba55/special_tokens_map.json
+    sha256: 5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a
+  - path: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/snapshots/aa8f8b060edb00e03bfdd08813a2949946c8ba55/tokenizer.json
+    url: https://huggingface.co/qdrant/bge-small-en-v1.5-onnx-q/resolve/aa8f8b060edb00e03bfdd08813a2949946c8ba55/tokenizer.json
+    sha256: d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66
+  - path: embedding/models--Qdrant--bge-small-en-v1.5-onnx-Q/snapshots/aa8f8b060edb00e03bfdd08813a2949946c8ba55/tokenizer_config.json
+    url: https://huggingface.co/qdrant/bge-small-en-v1.5-onnx-q/resolve/aa8f8b060edb00e03bfdd08813a2949946c8ba55/tokenizer_config.json
+    sha256: 0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53

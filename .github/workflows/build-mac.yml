@@ -1,0 +1,53 @@
+name: Build Mac app
+
+# Builds and tests the download, then throws it away. This repository is public, so anyone could
+# fetch an uploaded build result. Do not add an upload until the terms of use have had a legal
+# review and contain no [placeholders].
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.44.7
+          channel: stable
+      - run: uv python install 3.13
+      - name: Restore llama.cpp
+        id: llama
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build-cache/llama
+          key: llama-${{ runner.arch }}-${{ hashFiles('packaging/build_llama_macos.sh') }}
+      - name: Build llama.cpp
+        if: steps.llama.outputs.cache-hit != 'true'
+        run: packaging/build_llama_macos.sh build-cache/llama-work build-cache/llama
+      - name: Restore models
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build-cache/models
+          key: models-${{ hashFiles('packaging/models.lock.yaml') }}
+      - name: Build the app
+        run: packaging/build_macos.sh build-cache/llama build-cache/models
+      - name: Make the test PDF
+        working-directory: engine
+        run: uv run python ../packaging/make_test_pdf.py "$RUNNER_TEMP/guide.pdf"
+      - name: Smoke test, with the internet on
+        run: |
+          mkdir "$RUNNER_TEMP/smoke"
+          python3 packaging/smoke_test.py \
+            "$PWD/apps/desktop/build/macos/Build/Products/Release/Synapse.app/Contents/Resources/engine" \
+            "$RUNNER_TEMP/guide.pdf" "$RUNNER_TEMP/smoke"
+      - name: Real app test
+        working-directory: apps/desktop
+        env:
+          SYNAPSE_RESOURCES: ${{ github.workspace }}/apps/desktop/build/macos/Build/Products/Release/Synapse.app/Contents/Resources/engine
+        run: SYNAPSE_TEST_PDF="$RUNNER_TEMP/guide.pdf" flutter test integration_test/app_test.dart -d macos

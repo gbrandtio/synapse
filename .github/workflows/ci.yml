@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run lint-imports
+      # Synapse is MIT, so nothing bundled may require GPL or AGPL terms.
+      - name: Check licences
+        run: |
+          uv sync --frozen --no-dev
+          uv run --no-sync --with pip-licenses==5.5.5 pip-licenses --partial-match --fail-on "GNU General Public;GNU Affero;GPL"
+
+  desktop:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.44.7
+          channel: stable
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed --line-length=80 lib test integration_test
+      - run: dart analyze
+      - run: flutter test --coverage
+      - name: Require full coverage
+        run: |
+          uncovered=$(awk -F, '/^DA:/ && $2 == 0' coverage/lcov.info | wc -l)
+          echo "Uncovered lines: $uncovered"
+          test "$uncovered" -eq 0
