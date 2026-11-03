@@ -57,7 +57,7 @@ await pool.run(parse_pdf, path, timeout_seconds=120)
 
 ## Native libraries and thread counts
 
-ONNX Runtime and Ollama can each use many CPU threads. Together, they can oversubscribe the CPU and make everything slower.
+ONNX Runtime and the local llama.cpp server can each use many CPU threads. Together, they can oversubscribe the CPU and make everything slower.
 
 **Do**
 - Set thread limits explicitly, based on the computer's core count.

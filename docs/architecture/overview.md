@@ -11,7 +11,7 @@ Phase 1 code exists for the Apple Silicon Mac build. These pages describe the in
 | First release | Desktop app, with data kept on the user's machine and no accounts |
 | GitHub without a key | Public content, or a local git repo for private code. No browser login |
 | Jira without a key | Public content, browser login, or an imported Excel or CSV export |
-| Offline AI | The Complete download includes Ollama, a small AI model (`gemma3:1b`), and the embedding model. The re-ranking model is planned, not yet bundled |
+| Offline AI | The Complete download includes the llama.cpp server, a small AI model (Gemma 3 1B), and the embedding model. The re-ranking model is planned, not yet bundled |
 | Workflow builder | Templates plus a simple list of steps, with a canvas possible later |
 | Prompts | Users can write their own prompt in every AI step |
 | RAG design | One RAG pipeline and index, with named collections per source or purpose |
@@ -24,7 +24,7 @@ The other pages cover [configuration](./configuration.md), the [RAG pipeline](./
 
 Three choices do most of the work of keeping Synapse easy to configure and ship.
 
-1. **One installer contains everything.** The user downloads one file and needs no Python, Docker, git, Ollama or internet connection to start.
+1. **One installer contains everything.** The user downloads one file and needs no Python, Docker, git, separate AI server or internet connection to start.
 2. **Plain validated files describe everything.** Each collection and each assistant is a validated "blueprint" file, and every screen in the UI simply edits one. This makes sharing and upgrades straightforward.
 3. **Every source returns the same record format.** GitHub, Jira, files and web pages all share one common structure, plus declared fields per source type. The RAG and the workflows never need source-specific code.
 
@@ -47,8 +47,9 @@ Three choices do most of the work of keeping Synapse easy to configure and ship.
 │     ├─ stores/      SQLite, with sqlite-vec and FTS5                  │
 │     └─ secrets/     OS keychain                                       │
 │                                                                       │
-│  Bundled models: embedding and re-ranking (run inside the engine)     │
-│  Bundled Ollama and small AI model (separate local process)           │
+│  Bundled model: embedding (run inside the engine)                     │
+│  Re-ranking model: not bundled for now                                │
+│  Bundled llama.cpp server and Gemma 3 1B (separate local process)     │
 └───────────────────────────────────────────────────────────────────────┘
                                     │ optional
                      Cloud AI, GitHub, Jira, larger local models
@@ -56,7 +57,7 @@ Three choices do most of the work of keeping Synapse easy to configure and ship.
 
 Nothing below the line is required. With the Complete download, Synapse works from its first launch with no internet connection.
 
-Phase 1 builds only part of this diagram. The PDF reader, the SQLite search store, the question graph, the embedder and the Ollama process are built. Connectors, blueprints, the OS keychain, other parsers and workflows are not built yet.
+Phase 1 builds only part of this diagram. The PDF reader, the SQLite search store, the question graph, the embedder and the llama.cpp server process are built. Connectors, blueprints, the OS keychain, other parsers and workflows are not built yet.
 
 ### Technology choices
 
@@ -68,8 +69,8 @@ Phase 1 builds only part of this diagram. The PDF reader, the SQLite search stor
 | Streaming | Server-Sent Events, using `fastapi.sse` | It covers answer text and job progress, and FastAPI has it built in since 0.135, so no extra package is needed. |
 | Records and app data | SQLite | One file with no server to install or manage (see [ADR 0004](../adr/0004-sqlite-and-lancedb-for-desktop.md)). It stores records, fields, jobs, prompt history and LangGraph checkpoints. |
 | Search index | `sqlite-vec` and FTS5 | They keep vectors, keywords and records in one SQLite file, so one transaction covers them all (see [ADR 0015](../adr/0015-sqlite-vec-and-fts5-as-search-store.md)). |
-| Local embeddings | FastEmbed (ONNX), bundled | It runs on CPU without PyTorch, which keeps the installer small, and it does not need Ollama. |
-| Local AI | Ollama and a small model, bundled in Complete | It works offline immediately. If the user already runs Ollama, Synapse can use that instead. |
+| Local embeddings | FastEmbed (ONNX), bundled | It runs on CPU without PyTorch, which keeps the installer small, and it does not depend on the AI server. |
+| Local AI | llama.cpp server and Gemma 3 1B, bundled in Complete | It works offline immediately. It replaces Ollama, see [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md). A copy of Ollama the user installed may be added as an option later. |
 | Spreadsheets | `openpyxl`, `xlrd` and Python's `csv` | They read cell values only, and never run macros or formulas. |
 | Cloud AI | LangChain `init_chat_model` | OpenAI, Anthropic, Google, Azure and any OpenAI-compatible server all work through one setting. |
 | Git reading | Dulwich (pure Python) | It needs no git install and never runs hooks or repo config. |
@@ -92,29 +93,28 @@ Each feature has three layers: UI widgets, then blocs, then repositories. Reposi
 1. Flutter starts the engine with `runInShell: false`, as `docs/flutter/SECURITY.md` requires. The engine gets its own paths and a short list of system variables, such as `PATH` and `HOME`. Other variables, including proxy settings, are not passed.
 2. Flutter sends a random access token through stdin, so it never appears in process lists.
 3. The engine binds to 127.0.0.1 on port 0, so the operating system picks a free port, and reports the real port on stdout as a "ready" message.
-4. If Flutter exits, stdin closes and the engine shuts itself down, so no orphan processes remain. The engine stops within about 10 seconds at most, and stops Ollama on the way out. When the app's engine object closes, the app closes stdin, waits 5 seconds, and kills the engine if it is still running.
+4. If Flutter exits, stdin closes and the engine shuts itself down, so no orphan processes remain. The engine stops within about 10 seconds at most, and stops the llama.cpp server on the way out. When the app's engine object closes, the app closes stdin, waits 5 seconds, and kills the engine if it is still running.
 5. Not built yet: if the engine crashes, the app does not restart it or show a banner. Background jobs are planned to be stored in SQLite and resume where they stopped. Phase 1 has no background jobs.
 
 The PDF reader runs in a separate worker process. It has a 300 second time limit and a 512 MB file limit, so a corrupt PDF cannot take the engine down. Other parsers are not built yet.
 
-### How the bundled Ollama runs
+### How the bundled llama.cpp server runs
 
-The engine starts `ollama serve` as a child process the first time a local AI answer needs it. It stops Ollama when the engine shuts down.
+The engine starts `llama-server` as a child process the first time a local AI answer needs it. It stops the server when the engine shuts down. The server is built from llama.cpp `v0.8.0`, as [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md) describes.
 
-- **Private port:** `OLLAMA_HOST` points to 127.0.0.1 on a free port, so it never conflicts with a copy of Ollama the user already has, and is not reachable from other computers.
-- **Private models:** `OLLAMA_MODELS` points to the models folder inside the app. The design copies the models to Synapse's data folder on first run, so they survive updates. That copy is not built yet.
-- **Memory:** Synapse does not set a keep-alive time, so Ollama's default idle unload applies. A model can use several GB of memory.
-- **Cloud off:** the engine sets `OLLAMA_NO_CLOUD=1`.
-- **Proxies:** proxy variables are removed from Ollama's environment, and the two HTTP clients that call Ollama ignore proxy settings. Loopback traffic never uses a proxy.
-- **Leftover process:** the engine saves Ollama's process ID in `ollama.pid` in the data folder. If the engine was killed, the next start stops that Ollama on macOS, after checking that the process is still Ollama. Windows does not do this yet.
-- **Network use is not yet proven:** the "Nothing leaves this computer" wording in [UI and UX](./ux.md) is a goal until a full packet capture over a longer run supports it. A sampling test with `lsof`, every 0.2 seconds, saw no connection to another computer during a short run. Sampling can miss brief connections and does not see DNS, and Ollama's model-recommendations task is scheduled for hours later. See [Phase 0 results](../phase0/results.md#other-findings).
-- **Licences:** Ollama and its engine, llama.cpp, are MIT. The bundled AI model must also have a licence allowing redistribution (see [Size budget for Complete](#size-budget-for-complete)), and their notices ship with the app.
+- **Private port:** the server listens on 127.0.0.1 on a free port, so it does not conflict with other programs on the computer.
+- **Private key:** each launch uses a random key that only the engine knows. The key is passed in an environment variable, so process lists do not show it.
+- **Paths:** `SYNAPSE_LLAMA_BIN` points to the server program, and `SYNAPSE_AI_MODEL_FILE` points to the model file. The app sets both when it starts the engine.
+- **GPU and CPU:** the server uses the GPU first. GPU code can fail on a macOS version that has not been tested, so if the server crashes while starting, the engine retries on the CPU.
+- **Memory:** after 5 idle minutes (`--sleep-idle-seconds 300`), the server frees the model. This drops its memory from about 950 MB to about 90 MB. The model reloads on the next question.
+- **Leftover process:** the engine saves the server's process ID in `llama.pid` in the data folder. If the engine was killed, the next start stops that server on macOS, after checking that the process is still the bundled server. Windows does not do this yet.
+- **Network use:** the smoke test fails if any DNS lookup or direct connection leaves the computer, and it runs with the internet on. This found and removed Microsoft telemetry in onnxruntime ([ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md)). The test cannot see everything, so "Nothing leaves this computer" stays a goal until a long packet capture confirms it.
 
 ## Packaging, install and deployment
 
 | Platform | Format |
 |---|---|
-| macOS | `.dmg`, with separate Apple Silicon and Intel builds |
+| macOS | `.dmg`, with separate Apple Silicon and Intel builds. The app needs macOS 14 or newer |
 | Windows | Per-user installer, with no admin rights needed |
 | Teams, later | Docker image with PostgreSQL. It must refuse to bind beyond localhost until authentication exists |
 
@@ -135,10 +135,17 @@ Because users are told to bypass a warning, each release publishes SHA-256 check
 
 | Download | Contains | Best for |
 |---|---|---|
-| **Synapse Complete** (default) | App, engine, Ollama, small AI model, and embedding model. The re-ranking model is added when re-ranking is built | Everyone, and especially offline use |
-| **Synapse Standard** | App, engine, embedding model, and re-ranking model once built | Cloud AI users, people with their own Ollama, and updates |
+| **Synapse Complete** (default) | App, engine, llama.cpp server, Gemma 3 1B, and embedding model. The re-ranking model is added when re-ranking is built | Everyone, and especially offline use |
+| **Synapse Standard** | App, engine, embedding model, and re-ranking model once built | Cloud AI users, people who want their own Ollama later, and updates |
 
 The embedding model is in both, so search always works offline. With Standard, local models download inside the app when needed.
+
+**Licences and notices in Complete.** The build copies these files into the app:
+
+- The llama.cpp licence file (MIT), and the notices for the libraries built into the server, including cpp-httplib.
+- The Gemma notice and the Gemma Terms of Use, beside the model file.
+
+Synapse's own terms, which must include Gemma's use restrictions and be given to users, do not exist yet. Until they do, Complete does not meet the redistribution conditions in [ADR 0017](../adr/0017-bundled-ai-model.md).
 
 ### GitHub limits and how they apply
 
@@ -161,16 +168,16 @@ Measured on 2026-11-03 for the Apple Silicon build.
 
 | Part | Size | Basis |
 |---|---|---|
-| Complete `.dmg`, whole app | 1,128,102,926 bytes (1,075 MB) | Measured. Built by `packaging/build_macos.sh`, against the 1.9 GiB limit |
+| Complete `.dmg`, whole app | 1062 MB | Measured on the Apple Silicon build, against the 1.9 GiB limit. The final size is still changing |
 | Models folder: AI model and embedding model | 897 MB installed | Measured |
-| Ollama | 101 MB installed | Measured, trimmed |
+| llama.cpp server | Not measured separately | Replaces Ollama. The download falls only slightly |
 | Python runtime | 74 MB installed | Measured |
 | Python packages | 225 MB installed | Measured |
-| Windows | Unknown | Not measured. One third-party figure puts Ollama on Windows at 745 MB |
+| Windows | Unknown | Not measured. The Windows llama.cpp build is not made yet |
 
 The installed parts add up to more than the `.dmg`, because the `.dmg` is compressed. The Apple Silicon build has about 0.9 GB of room under the limit. The re-ranking model is not in the build, because re-ranking is not built yet.
 
-**The honest consequence:** this rules out the popular 8 GB laptop models. Reported sizes are about 1.7 GB for Gemma 3 2B, 2 GB for Llama 3.2 3B, and 2.5 GB for Phi-4 Mini. Only a very small model fits. Complete bundles `gemma3:1b`, which has no tool calling. Such a model is suitable for answering from retrieved passages, but it will be weaker at complex reasoning and agent work.
+**The honest consequence:** this rules out the popular 8 GB laptop models. Reported sizes are about 1.7 GB for Gemma 3 2B, 2 GB for Llama 3.2 3B, and 2.5 GB for Phi-4 Mini. Only a very small model fits. Complete bundles Gemma 3 1B, which has no tool calling. Such a model is suitable for answering from retrieved passages, but it will be weaker at complex reasoning and agent work.
 
 **Model rules:**
 
@@ -193,7 +200,7 @@ These optional packs download only when needed:
 | High-quality documents (Docling) | A scanned PDF or complex tables are detected | Reported at about 1 GB or more |
 | Browser login for Jira (Playwright) | The user first needs private Jira access without a key | Only some users need it |
 
-**Upgrades:** the UI and engine always ship together, so version mismatches cannot occur. Blueprints carry a schema version and migrate automatically. The design has Complete copy Ollama and its models to the data folder on first run, so they survive updates. This copy is not built yet. The update notice therefore links to the smaller Standard download, and existing users do not download 2 GiB again.
+**Upgrades:** the UI and engine always ship together, so version mismatches cannot occur. Blueprints carry a schema version and migrate automatically. The design has Complete copy the llama.cpp server and its model to the data folder on first run, so they survive updates. This copy is not built yet. The update notice therefore links to the smaller Standard download, and existing users do not download 2 GiB again.
 
 **Release pipeline:** GitHub Actions builds both downloads on Windows and macOS, because Python native libraries cannot be cross-compiled reliably. Each build is installed and smoke-tested with the network off, by adding a sample document and asking a question using the bundled model. Releases go to GitHub Releases. Phase 1 has no CI yet, so the Mac build is made by hand with `packaging/build_macos.sh`.
 
@@ -243,9 +250,9 @@ The existing `docs/flutter/` rules apply to the UI, including `Result<T>`, no `d
 5. Is Dulwich fast enough on a large repository?
 6. Does the Jira browser session work headlessly after login, or must the window remain visible? What is the real download size of Playwright?
 7. Is the combination of `pypdfium2` and MarkItDown good enough by default, and how large is `docling-slim`?
-8. Do Tree-sitter's language packages fit the installer budget? Which common Ollama models reliably support structured output and tools?
+8. Do Tree-sitter's language packages fit the installer budget? Which common small models reliably support structured output and tools?
 9. **Bundled model:** does any model that fits the budget meet the model rules in [Size budget for Complete](#size-budget-for-complete), with acceptable answers and speed on an 8 GB computer? This picks the bundled model. Complete stays one file either way, so if no candidate is acceptable, the question goes back to the project owner.
-10. **Bundled Ollama:** what is its real size per operating system, how much do GPU libraries add, and can unneeded ones be removed safely? Does a private `OLLAMA_MODELS` folder work when pre-filled by an installer, on Windows and macOS? Can Ollama run from the data folder after being copied there, including on unsigned macOS builds? If not, Complete users must update with Complete.
+10. **Bundled Ollama:** what is its real size per operating system, how much do GPU libraries add, and can unneeded ones be removed safely? Does a private `OLLAMA_MODELS` folder work when pre-filled by an installer, on Windows and macOS? Can Ollama run from the data folder after being copied there, including on unsigned macOS builds? If not, Complete users must update with Complete. Ollama was replaced by the llama.cpp server, see [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md).
 11. **GitHub limits:** does a build close to 2 GiB upload and download reliably, and do GitHub Actions runners have the disk space? Do Windows and macOS installers handle a payload of this size?
 12. **Jira exports:** done, using the only export available, a Jira Cloud `.csv`. [What a real export looks like](./connectors.md#what-a-real-export-looks-like) records the results. No other samples will be collected, so tests build made-up files in that format, including filled-in start dates.
 
@@ -280,8 +287,9 @@ The existing `docs/flutter/` rules apply to the UI, including `Result<T>`, no `d
 
 - Packaging: [flutter_python_starter](https://github.com/MobilePython/flutter_python_starter), [shipping Python to end users](https://pydevtools.com/handbook/explanation/how-do-i-ship-a-python-application-to-end-users.md)
 - GitHub: [release limits](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases), [large files](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github), [Git LFS](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-git-large-file-storage), [push limit](https://docs.github.com/en/get-started/using-git/troubleshooting-the-2-gb-push-limit)
-- Ollama and models: [Ollama installation](https://mintlify.com/ollama/ollama/installation), [Windows download size](https://lilys.ai/notes/zh/bitcoin-bear-market-20251214/ollama-windows-install-ai), [small model sizes](https://www.promptquorum.com/de/local-llms/best-beginner-local-llm-models)
+- llama.cpp: [source repository](https://github.com/ggml-org/llama.cpp)
+- Models: [small model sizes](https://www.promptquorum.com/de/local-llms/best-beginner-local-llm-models)
 - Search index: [self-hosted vector database comparison](https://d-central.tech/self-hosted-vector-databases/), [LanceDB hybrid search](https://docs.lancedb.com/search/hybrid-search)
 - FastAPI: [Server-Sent Events](https://fastapi.tiangolo.com/tutorial/server-sent-events/)
 
-**Not yet confirmed against official sources:** PyMuPDF's licence terms, the macOS and Windows unsigned-app warnings, Ollama's MIT licence, and candidate model sizes and licences. Phase 0 and the licence gate check these.
+**Not yet confirmed against official sources:** PyMuPDF's licence terms, the macOS and Windows unsigned-app warnings, llama.cpp's MIT licence, and candidate model sizes and licences. Phase 0 and the licence gate check these.

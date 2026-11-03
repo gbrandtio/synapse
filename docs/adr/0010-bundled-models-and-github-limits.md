@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-03
 - Deciders: Project owner
+- Note (2026-11-03): Complete now bundles the llama.cpp server instead of Ollama. See [ADR 0018](./0018-llama-cpp-instead-of-ollama.md). Re-ranking is not bundled for now, so the re-ranking model is not in the build.
 
 ## Context
 

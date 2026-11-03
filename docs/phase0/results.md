@@ -76,6 +76,8 @@ LanceDB at 100,000 passages took 6 ms for vector search and 178 MB on disk. On r
 
 GPU off and four threads. Scoring uses fixed keyword checks, so small differences are ties.
 
+**Later update (2026-11-03):** the table below was measured on Ollama. Ollama's network use was hard to verify, and it ran as two processes. These reasons led to [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md), which bundles the llama.cpp server instead. The same Gemma model was rerun on llama.cpp with `spikes/bench_llama.py`. It scored 12 of 12 on answers, 5 of 5 on extraction, and 3 of 4 on filters. The one filter miss was "List finished tickets", which invented an assignee named "admin". On Ollama the same test scored 11, 5 and 4. These are small keyword-scored sets, so treat the two results as a tie.
+
 | Model | Download | Licence | Answers (12) | Extraction (5) | Filters (4) | Tools | Tokens per second | Memory |
 |---|---|---|---|---|---|---|---|---|
 | **`gemma3:1b`** | 769 MB | Gemma terms | 11 | 5 | 4 | No | 85 | 1.0 GB |
@@ -90,7 +92,7 @@ GPU off and four threads. Scoring uses fixed keyword checks, so small difference
 
 ## Size
 
-Measured on 2026-11-03 for the Apple Silicon build:
+Measured on 2026-11-03 for the Apple Silicon build. The Ollama rows were replaced by the llama.cpp server in [ADR 0018](../adr/0018-llama-cpp-instead-of-ollama.md), so these figures are historical:
 
 | Part | Size | Basis |
 |---|---|---|
@@ -110,4 +112,5 @@ Windows sizes are unknown. One third-party figure puts Ollama on Windows at 745 
 - **Tree-sitter:** `tree-sitter-language-pack` downloads parsers on first use, which breaks offline use. CI must fetch them at build time and the app must load only bundled copies.
 - **Docling:** `docling-slim` installs at 131 MB, but this excludes its models, so its real size is still unknown.
 - **MarkItDown** needs its own PDF extra to read PDFs. It is not needed, because `pypdfium2` reads them.
+- **Later update (2026-11-03):** the checks below also missed real telemetry from onnxruntime in the Python engine, because they blocked the internet or only sampled connections. See [ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md).
 - **Ollama network use is unresolved.** Its log shows cloud features on by default and a scheduled model-recommendations task. The engine sets `OLLAMA_NO_CLOUD=1`, but the recommendations task is still scheduled. In a short run, `lsof` sampling every 0.2 seconds (in `packaging/smoke_test.py`) saw no connection to another computer, and the app works with internet blocked. This does not settle the question. Sampling can miss brief connections and does not see DNS, and the recommendations task is scheduled for hours later. Keep this unresolved until a full packet capture over a longer run shows no connection to another computer. Only then can "Nothing leaves this computer" be stated.

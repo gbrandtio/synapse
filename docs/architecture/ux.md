@@ -25,7 +25,7 @@ With Complete there are no setup questions. The user goes straight to creating a
 └───────────────────────────────────────────────────────────────┘
 ```
 
-Synapse checks the computer's memory and warns if it is below what the bundled model needs. With Standard, the first screen instead offers a cloud key, the user's own Ollama if found, or a model download.
+Synapse checks the computer's memory and warns if it is below what the bundled model needs. With Standard, the first screen instead offers a cloud key, the user's own Ollama if found (not built yet), or a model download.
 
 ## Creating an assistant
 

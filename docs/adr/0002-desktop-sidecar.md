@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-03
 - Deciders: Project owner
+- Note (2026-11-03): the second private process is now the llama.cpp server, not Ollama. See [ADR 0018](./0018-llama-cpp-instead-of-ollama.md).
 
 ## Context
 

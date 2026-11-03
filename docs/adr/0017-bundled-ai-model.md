@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-03
 - Deciders: Project owner
+- Note (2026-11-03): the model is now a Gemma 3 1B GGUF file served by the llama.cpp server, not by Ollama. See [ADR 0018](./0018-llama-cpp-instead-of-ollama.md).
 
 ## Context
 

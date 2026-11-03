@@ -24,7 +24,7 @@ An **assistant** says which collections it may use and what it does with them:
 schema_version: 1
 kind: assistant
 name: Support helper
-model: { provider: ollama, name: "<from catalog>" }
+model: { provider: local, name: "<from catalog>" }
 steps:
   - id: search
     type: search_knowledge
@@ -55,7 +55,7 @@ Users only see the level they choose.
 
 ## Every setting
 
-The description below also appears beside each setting in the UI. Numeric defaults are starting points, and Phase 2 tunes them against the test sets. Unless "Next step" says otherwise, a change applies immediately. Internal engine values, such as `OLLAMA_HOST` or `num_ctx`, are not user settings, so they are not listed here.
+The description below also appears beside each setting in the UI. Numeric defaults are starting points, and Phase 2 tunes them against the test sets. Unless "Next step" says otherwise, a change applies immediately. Internal engine values, such as the local server's port or its context size, are not user settings, so they are not listed here.
 
 **AI**
 
@@ -63,7 +63,7 @@ The description below also appears beside each setting in the UI. Numeric defaul
 |---|---|---|---|---|
 | AI provider | Chooses who writes the answers: a model on this computer, or a cloud service. | This computer in Complete, otherwise chosen at first run | Simple | |
 | AI model | Chooses the specific model. Larger models usually answer better, but are slower or cost more. | The bundled small model in Complete | Simple | |
-| Local AI engine | Chooses between Synapse's built-in Ollama and a copy of Ollama you installed yourself. | Built-in, or your own if Standard finds one | Advanced | |
+| Local AI engine | Chooses the program that runs the model on this computer. Synapse's built-in llama.cpp server is the only choice for now. A copy of Ollama you installed yourself may be added later. | Built-in | Advanced | |
 | API key | The password that lets Synapse use a cloud AI service. It is stored in the system keychain. | None | Simple | |
 | Creativity | Low gives consistent, factual answers, and high gives more varied wording. Low suits document questions. | Low (0.2) | Advanced | |
 | Maximum answer length | Limits how long an answer can be, which also limits cost. | 1,000 tokens (about 750 words) | Advanced | |

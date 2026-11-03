@@ -59,7 +59,7 @@ def fan_out(state: ExtractState) -> list[Send]:
 
 ## Local model behaviour
 
-Ollama has its own costs, which differ from cloud AI.
+Local models have their own costs, which differ from cloud AI.
 
 **Do**
 - Pre-load the model when the user opens a chat, so the first question avoids the load delay.
