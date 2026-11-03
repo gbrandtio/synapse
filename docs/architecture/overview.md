@@ -94,7 +94,7 @@ Each feature has three layers: UI widgets, then blocs, then repositories. Reposi
 2. Flutter sends a random access token through stdin, so it never appears in process lists.
 3. The engine binds to 127.0.0.1 on port 0, so the operating system picks a free port, and reports the real port on stdout as a "ready" message.
 4. If Flutter exits, stdin closes and the engine shuts itself down, so no orphan processes remain. The engine stops within about 10 seconds at most, and stops the llama.cpp server on the way out. When the app's engine object closes, the app closes stdin, waits 5 seconds, and kills the engine if it is still running.
-5. Not built yet: if the engine crashes, the app does not restart it or show a banner. Background jobs are planned to be stored in SQLite and resume where they stopped. Phase 1 has no background jobs.
+5. If the engine exits unexpectedly, the app starts it again and shows a notice. Documents stay, but the current conversation is lost. The app restarts the engine up to 2 times a minute. After that it shows a Try again screen. Background jobs are planned to be stored in SQLite and resume where they stopped. Phase 1 has no background jobs.
 
 The PDF reader runs in a separate worker process. It has a 300 second time limit and a 512 MB file limit, so a corrupt PDF cannot take the engine down. Other parsers are not built yet.
 
@@ -108,6 +108,7 @@ The engine starts `llama-server` as a child process the first time a local AI an
 - **GPU and CPU:** the server uses the GPU first. GPU code can fail on a macOS version that has not been tested, so if the server crashes while starting, the engine retries on the CPU.
 - **Memory:** after 5 idle minutes (`--sleep-idle-seconds 300`), the server frees the model. This drops its memory from about 950 MB to about 90 MB. The model reloads on the next question.
 - **Leftover process:** the engine saves the server's process ID in `llama.pid` in the data folder. If the engine was killed, the next start stops that server on macOS, after checking that the process is still the bundled server. Windows does not do this yet.
+- **Restart:** if the server is killed, the next question starts a new one.
 - **Network use:** the smoke test fails if any DNS lookup or direct connection leaves the computer, and it runs with the internet on. This found and removed Microsoft telemetry in onnxruntime ([ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md)). The test cannot see everything, so "Nothing leaves this computer" stays a goal until a long packet capture confirms it.
 
 ## Packaging, install and deployment
@@ -145,20 +146,20 @@ The embedding model is in both, so search always works offline. With Standard, l
 - The llama.cpp licence file (MIT), and the notices for the libraries built into the server, including cpp-httplib.
 - The Gemma notice and the Gemma Terms of Use, beside the model file.
 
-Synapse's own terms, which must include Gemma's use restrictions and be given to users, do not exist yet. Until they do, Complete does not meet the redistribution conditions in [ADR 0017](../adr/0017-bundled-ai-model.md).
+Synapse's own terms exist only as a draft, in `apps/desktop/assets/legal/TERMS.txt`. The app shows the draft under "Terms and licences". The draft has placeholders and has not had legal review. The app must not be shared until the terms are final. Until then, Complete does not meet the redistribution conditions in [ADR 0017](../adr/0017-bundled-ai-model.md), which require Synapse's own terms that include Gemma's use restrictions.
 
 ### GitHub limits and how they apply
 
 | GitHub limit | Value | What Synapse does |
 |---|---|---|
-| Release asset size | Each file under 2 GiB | Every installer must be under this. CI fails a build above 1.9 GiB |
+| Release asset size | Each file under 2 GiB | Every installer must be under this. The build script fails above 1.9 GiB |
 | Assets per release | Up to 1,000 | Far more than we need |
 | Total release size and bandwidth | No limit | Downloads are free to host |
 | Files in the git repository | Warning above 50 MiB | Models are never committed |
 | Git LFS | Limited by a storage and bandwidth quota | Not used |
 | Single push | 2 GiB | Not relevant, as models stay out of git |
 
-Models live only in release assets. `packaging/models.lock.yaml` records each model's source, licence and SHA-256 hash. CI downloads the models, verifies the hashes and builds the installers, so a build is repeatable and cannot silently pick up a different model.
+Models are never committed to git. `packaging/models.lock.yaml` lists each file with its licence, its download address and its SHA-256 hash. `packaging/fetch_models.py` downloads the files from those addresses and stops on any hash that does not match, so a build cannot silently pick up a different model. The addresses point to the Ollama registry and Hugging Face, not to GitHub release assets.
 
 GitHub's docs pages for some of these limits are old, so Phase 0 confirms them with a real upload of a file close to 2 GiB. It also checks that CI runners have the disk space for these builds.
 
@@ -168,14 +169,14 @@ Measured on 2026-11-03 for the Apple Silicon build.
 
 | Part | Size | Basis |
 |---|---|---|
-| Complete `.dmg`, whole app | 1062 MB | Measured on the Apple Silicon build, against the 1.9 GiB limit. The final size is still changing |
+| Complete `.dmg`, whole app | About 1,005 MB | Measured on the Apple Silicon build, against the 1.9 GiB limit. The final size is still changing |
 | Models folder: AI model and embedding model | 897 MB installed | Measured |
 | llama.cpp server | Not measured separately | Replaces Ollama. The download falls only slightly |
 | Python runtime | 74 MB installed | Measured |
 | Python packages | 225 MB installed | Measured |
 | Windows | Unknown | Not measured. The Windows llama.cpp build is not made yet |
 
-The installed parts add up to more than the `.dmg`, because the `.dmg` is compressed. The Apple Silicon build has about 0.9 GB of room under the limit. The re-ranking model is not in the build, because re-ranking is not built yet.
+The installed parts add up to more than the `.dmg`, because the `.dmg` is compressed. The Apple Silicon build has about 1 GB of room under the limit. The re-ranking model is not in the build, because re-ranking is not built yet.
 
 **The honest consequence:** this rules out the popular 8 GB laptop models. Reported sizes are about 1.7 GB for Gemma 3 2B, 2 GB for Llama 3.2 3B, and 2.5 GB for Phi-4 Mini. Only a very small model fits. Complete bundles Gemma 3 1B, which has no tool calling. Such a model is suitable for answering from retrieved passages, but it will be weaker at complex reasoning and agent work.
 
@@ -202,9 +203,9 @@ These optional packs download only when needed:
 
 **Upgrades:** the UI and engine always ship together, so version mismatches cannot occur. Blueprints carry a schema version and migrate automatically. The design has Complete copy the llama.cpp server and its model to the data folder on first run, so they survive updates. This copy is not built yet. The update notice therefore links to the smaller Standard download, and existing users do not download 2 GiB again.
 
-**Release pipeline:** GitHub Actions builds both downloads on Windows and macOS, because Python native libraries cannot be cross-compiled reliably. Each build is installed and smoke-tested with the network off, by adding a sample document and asking a question using the bundled model. Releases go to GitHub Releases. Phase 1 has no CI yet, so the Mac build is made by hand with `packaging/build_macos.sh`.
+**Release pipeline:** the design uses GitHub Actions to build both downloads on Windows and macOS, because Python native libraries cannot be cross-compiled reliably. Each build is meant to be installed and smoke-tested with the network off, by adding a sample document and asking a question using the bundled model. The Mac smoke test runs with the internet on instead, and checks every connection (see [ADR 0019](../adr/0019-no-telemetry-in-the-bundle.md)). Releases go to GitHub Releases. Phase 1 has two workflows in `.github/workflows/`. `ci.yml` runs the engine and Flutter checks on push to `main` and on pull requests. `build-mac.yml` builds and tests the Mac download when someone starts it by hand, then discards the result. The repository is public, so no build is uploaded until the terms pass legal review. Neither workflow has ever run, because nothing has been pushed yet. There is no Windows workflow.
 
-**Licence gate:** CI fails on AGPL or GPL-only dependencies. This matters because PyMuPDF and PyMuPDF4LLM are AGPL or commercially licensed, which conflicts with shipping Synapse as MIT, so Synapse does not use them despite their good reviews.
+**Licence gate:** the CI workflow fails on AGPL or GPL-only dependencies. It has not run yet. This matters because PyMuPDF and PyMuPDF4LLM are AGPL or commercially licensed, which conflicts with shipping Synapse as MIT, so Synapse does not use them despite their good reviews.
 
 **Privacy:** no telemetry unless the user opts in. LangSmith tracing is off in releases, and is used only in development with test data.
 
@@ -239,7 +240,7 @@ The existing `docs/flutter/` rules apply to the UI, including `Result<T>`, no `d
 | **6. Polish and launch** | `.synapse` sharing, accessibility, install instructions | Non-technical testers succeed unaided |
 | **Later** | Signing and auto-update, canvas, team mode with PostgreSQL, write actions, MCP, contextual retrieval, graph-based search | |
 
-**Phase 1 status.** Phase 1 is partly done. Only the Apple Silicon Mac build exists. There is no Windows build, no CI, and no tested Intel Mac build. Models are fetched by hand and passed to the build script. Phase 1 is not complete until Complete also works on Windows.
+**Phase 1 status.** Phase 1 is partly done. Only the Complete download for the Apple Silicon Mac is built. The Standard download is not built. The Mac build has crash recovery, an automatic model fetch, and CI files. The CI files have never run. Windows is postponed. The phase table above still requires Windows, so the project owner must decide whether that row changes. Not built yet: copying models to the data folder for updates, and a file picker, so PDFs can only be added by dragging them into the window. There is no tested Intel Mac build.
 
 **Phase 0 tests.** Research could not settle these, so they need real tests. [Phase 0 results](../phase0/results.md) records what has been answered:
 
@@ -275,7 +276,7 @@ The existing `docs/flutter/` rules apply to the UI, including `Result<T>`, no `d
 - **Connectors:** contract tests against recorded responses, covering each access method, and confirming that custom fields and comments map correctly.
 - **Local repos:** tests confirm no hook or repo config runs, the repo is unchanged afterwards, and private-repo errors offer the local copy option.
 - **Spreadsheets:** exports produce the same records as the API for the same tickets. Real exports contain people's names and company data, so they are never committed, and committed test files use made-up data in the same format. Tests cover ambiguous dates, missing keys, repeated comment columns, malformed files, HTML disguised as `.xls`, and macros, which must never run.
-- **Packaging:** CI verifies every model's hash and licence entry, fails above 1.9 GiB, and confirms no model files are in git.
+- **Packaging:** `packaging/fetch_models.py` verifies every model's hash, and `packaging/build_macos.sh` fails above 1.9 GiB. Checking each model's licence entry and confirming that no model files are in git are not built yet.
 - **Quality:** the RAG test set for each source type runs in CI against the naive baseline.
 - **Settings:** a test fails if any blueprint setting lacks a description, so the UI can never show an unexplained option.
 - **Prompts:** tests confirm that `{{...}}` inside source text stays as plain text, and that unknown variables are rejected before running.

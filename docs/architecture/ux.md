@@ -1,5 +1,7 @@
 # UI and UX
 
+**Phase 1 status:** the window shows the document drop zone with the document list, the chat panel, the restart notice, and the "Terms and licences" dialog. PDFs can only be added by dragging them into the window. The rest of this page describes the design.
+
 ## Principles
 
 - **Plain words:** the UI says "Collection", "Passage" and "Assistant", and never "vector store", "embedding" or "JQL" outside Expert mode.
@@ -7,6 +9,14 @@
 - **Good defaults, explained:** every setting has a default and a one-sentence description, as listed in [Every setting](./configuration.md#every-setting), and users never have to choose a RAG method.
 - **Useful errors:** each one says what happened and offers one button to fix it.
 - **Visible trust:** every answer shows its sources, and every source shows its status and last sync.
+
+## Look
+
+The app uses one white theme, with black text and thin grey lines. Poppins is bundled in the app, so the font loads without a network. The window stays white even when macOS is set to dark mode. There is no dark theme. This replaces the earlier plan for light and dark themes.
+
+## When the engine stops
+
+If the engine stops unexpectedly, the app starts it again and shows a short notice. The notice says that documents are safe, but the conversation was cleared. The user can close the notice. If the engine keeps stopping, the app allows up to 2 restarts a minute. After that it shows "Synapse keeps stopping unexpectedly. Your documents are safe." with a Try again button.
 
 ## First run (under a minute)
 
@@ -142,4 +152,4 @@ The hidden-columns line matters because a real Jira export can have hundreds of 
 
 The step editor is a vertical list of cards with a "+" between them, and each card is a plain form generated from the blueprint schema.
 
-Accessibility is included from the start: keyboard navigation, screen-reader labels, and light and dark themes. The app is English only, as [ADR 0014](../adr/0014-english-only-windows-and-mac.md) explains.
+Accessibility is included from the start: keyboard navigation and screen-reader labels. There is no dark theme, as [Look](#look) explains. The app is English only, as [ADR 0014](../adr/0014-english-only-windows-and-mac.md) explains.

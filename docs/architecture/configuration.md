@@ -155,7 +155,8 @@ The description below also appears beside each setting in the UI. Numeric defaul
 | Keep running in the background | Keeps a tray icon so that schedules and syncs continue with the window closed. | Off | Simple |
 | Start at login | Opens Synapse when the computer starts, which is useful for schedules. | Off | Advanced |
 | Settings level | Chooses how many settings are visible: Simple, Advanced or Expert. | Simple | Simple |
-| Appearance | Light, dark, or matching the system. | Match system | Simple |
+
+There is no Appearance setting. The app has one white theme and no dark theme, as [UI and UX](./ux.md#look) explains.
 
 ## Status of these values
 
