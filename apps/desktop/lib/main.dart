@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'engine/engine_cubit.dart';
 import 'engine/engine_process.dart';
 import 'ui/home_page.dart';
+import 'ui/theme.dart';
 
 void main() {
   runApp(SynapseApp(launcher: ProcessEngineLauncher(EnginePaths.bundled())));
@@ -36,8 +37,8 @@ class _SynapseAppState extends State<SynapseApp> {
       value: _engine,
       child: MaterialApp(
         title: 'Synapse',
-        theme: ThemeData(useMaterial3: true),
-        darkTheme: ThemeData.dark(useMaterial3: true),
+        debugShowCheckedModeBanner: false,
+        theme: synapseTheme(),
         home: const HomePage(),
       ),
     );

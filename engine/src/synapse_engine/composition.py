@@ -28,6 +28,7 @@ def build_app(settings: Settings, token: str) -> FastAPI:
     embedder = FastEmbedEmbedder(settings.embedding_dir)
     pid_file = settings.data_dir / "llama.pid"
     llama = LlamaProcess(settings.llama_binary, settings.ai_model_file, pid_file, _CONTEXT_TOKENS)
+    llama.stop_leftover()  # A killed engine leaves its server holding the model in memory.
     # Never send questions or passages through a proxy set in the environment.
     http_async_client = httpx.AsyncClient(trust_env=False, timeout=None)  # noqa: S113 - an answer can take minutes
     http_client = httpx.Client(trust_env=False, timeout=None)  # noqa: S113 - same, though unused today

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +11,7 @@ import 'package:synapse_desktop/engine/engine_client.dart';
 import 'package:synapse_desktop/engine/engine_cubit.dart';
 import 'package:synapse_desktop/engine/engine_process.dart';
 import 'package:synapse_desktop/ui/home_page.dart';
+import 'package:synapse_desktop/ui/theme.dart';
 
 import 'fake_engine.dart';
 
@@ -50,7 +52,8 @@ void main() {
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 1000);
-    addTearDown(tester.view.resetPhysicalSize);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final client = fakeClient({
       '/ask': sse([
         ('token', {'text': 'Firmware 2.1.7.'}),
@@ -113,7 +116,8 @@ void main() {
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 1000);
-    addTearDown(tester.view.resetPhysicalSize);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final client = fakeClient({
       '/documents': http.Response(
         '[{"id":1,"name":"guide.pdf","pages":3,"passages":3}]',
@@ -166,7 +170,8 @@ void main() {
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 1000);
-    addTearDown(tester.view.resetPhysicalSize);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final reply = Completer<http.StreamedResponse>();
     final client = EngineClient(
       baseUrl: Uri.parse('http://127.0.0.1:1'),
@@ -189,16 +194,147 @@ void main() {
     await tester.pump();
     expect(find.text('second'), findsOneWidget);
     final send = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.send),
+      find.widgetWithIcon(IconButton, Icons.arrow_upward),
     );
     expect(send.onPressed, isNull);
+  });
+
+  testWidgets('a restart is explained, and can be dismissed', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final crash = Completer<void>();
+    final replacement = fakeClient({'/documents': http.Response('[]', 200)});
+    final cubit = EngineCubit(
+      _SequenceLauncher([
+        Success(
+          RunningEngine(
+            fakeClient({'/documents': http.Response('[]', 200)}),
+            () async {},
+            exited: crash.future,
+          ),
+        ),
+        Success(RunningEngine(replacement, () async {})),
+      ]),
+    );
+    await tester.pumpWidget(_app(cubit));
+    await tester.runAsync(cubit.start);
+    await tester.pump();
+    expect(find.textContaining('had a problem'), findsNothing);
+    await tester.runAsync(() async {
+      crash.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    await tester.pump();
+    expect(find.textContaining('had a problem'), findsOneWidget);
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pump();
+    expect(find.textContaining('had a problem'), findsNothing);
+  });
+
+  testWidgets('dragging files over the zone highlights, then adds them', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bloc = DocumentsBloc(fakeClient({}));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BlocProvider.value(value: bloc, child: const DocumentsPanel()),
+        ),
+      ),
+    );
+    final zone = tester.widget<DropTarget>(find.byType(DropTarget));
+    const place = Offset.zero;
+    zone.onDragEntered!(
+      DropEventDetails(localPosition: place, globalPosition: place),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    zone.onDragExited!(
+      DropEventDetails(localPosition: place, globalPosition: place),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    zone.onDragDone!(
+      DropDoneDetails(
+        files: [DropItemFile('/nowhere/a.txt')],
+        localPosition: place,
+        globalPosition: place,
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+    expect(bloc.state.error, isNotNull);
+  });
+
+  testWidgets('the terms open, show their text, and close', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bloc = DocumentsBloc(fakeClient({}));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BlocProvider.value(value: bloc, child: const DocumentsPanel()),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Terms and licences'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Prohibited Use Policy'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TermsDialog), findsNothing);
+  });
+
+  testWidgets('long problems fit in the smallest window', (tester) async {
+    tester.view.physicalSize = const Size(860, 560);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bloc = DocumentsBloc(fakeClient({}));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: synapseTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 288,
+            child: BlocProvider.value(
+              value: bloc,
+              child: const DocumentsPanel(),
+            ),
+          ),
+        ),
+      ),
+    );
+    final long = List.filled(
+      40,
+      'a-very-long-file-name.pdf could not be read.',
+    );
+    bloc.emit(DocumentsState(progress: long.join(' '), error: long.join('\n')));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Terms and licences'), findsOneWidget);
+  });
+
+  test('the theme is white and uses Poppins', () {
+    final theme = synapseTheme();
+    expect(theme.scaffoldBackgroundColor, Colors.white);
+    expect(theme.textTheme.bodyMedium?.fontFamily, startsWith('Poppins'));
   });
 
   testWidgets('shows progress and problems while adding a file', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 1000);
-    addTearDown(tester.view.resetPhysicalSize);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final bloc = DocumentsBloc(fakeClient({}));
     await tester.pumpWidget(
       MaterialApp(

@@ -12,13 +12,16 @@ import 'engine_client.dart';
 /// A running engine.
 final class RunningEngine {
   /// Creates a handle to a running engine.
-  const RunningEngine(this.client, this.stop);
+  const RunningEngine(this.client, this.stop, {this.exited});
 
   /// The client connected to it.
   final EngineClient client;
 
   /// Stops the engine.
   final Future<void> Function() stop;
+
+  /// Finishes when the engine exits, for any reason.
+  final Future<void>? exited;
 }
 
 /// Starts the engine.
@@ -148,6 +151,7 @@ final class ProcessEngineLauncher implements EngineLauncher {
             },
           );
         },
+        exited: process.exitCode,
       ),
     );
   }

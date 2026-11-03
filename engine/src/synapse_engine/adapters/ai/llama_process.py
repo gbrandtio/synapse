@@ -149,7 +149,7 @@ class LlamaProcess:
             ).stdout
             if f"{self._binary} --model" in command:
                 os.killpg(pid, signal.SIGKILL)
-        except (ValueError, ProcessLookupError, PermissionError):
+        except (ValueError, OSError):
             pass
         self._pid_file.unlink(missing_ok=True)
 

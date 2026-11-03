@@ -56,6 +56,24 @@ def main():
     await engine.stop();
   });
 
+  test(
+    'an engine that ignores the stop request is killed',
+    () async {
+      final launcher = await _launcherFor('''
+import sys, time
+def main():
+    sys.stdin.readline()
+    print('{"event": "ready", "port": 4242}', flush=True)
+    time.sleep(60)
+''');
+      final result = await launcher.start();
+      final engine = (result as Success<RunningEngine>).value;
+      await engine.stop();
+      await engine.exited;
+    },
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
+
   for (final (name, body) in [
     ('exits early', 'def main():\n    pass\n'),
     ('prints garbage', 'def main():\n    print("oops", flush=True)\n'),

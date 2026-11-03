@@ -60,5 +60,16 @@ void main() {
       find.byType(SelectableText),
     );
     expect(answer.first.data, contains('14'));
+
+    // Kill the engine: the app must restart it, keep the document and answer.
+    await Process.run('pkill', ['-9', '-f', EnginePaths.bundled().engineDir]);
+    await waitFor(tester, find.textContaining('had a problem'));
+    await waitFor(tester, find.text('guide.pdf'));
+    await tester.enterText(
+      find.byType(TextField),
+      'Which firmware fixes the PX-400 printer?',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await waitFor(tester, find.textContaining('guide.pdf, page 2'));
   });
 }
