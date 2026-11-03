@@ -21,3 +21,5 @@ Each record explains why a significant decision was made. Records are never dele
 | [0015](./0015-sqlite-vec-and-fts5-as-search-store.md) | Use sqlite-vec and FTS5 as the search store |
 | [0016](./0016-search-defaults.md) | Set search defaults from measured results |
 | [0017](./0017-bundled-ai-model.md) | Bundle Gemma 3 1B as the offline AI model |
+| [0018](./0018-llama-cpp-instead-of-ollama.md) | Bundle the llama.cpp server instead of Ollama |
+| [0019](./0019-no-telemetry-in-the-bundle.md) | Keep telemetry libraries out of the bundle |

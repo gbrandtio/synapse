@@ -29,10 +29,11 @@ flutter test --coverage && flutter analyze
 ## Build for Mac
 
 ```sh
-packaging/build_macos.sh <ollama folder> <fastembed cache> <ollama models folder>
+packaging/build_llama_macos.sh <empty work folder> <llama folder>
+packaging/build_macos.sh <llama folder> <fastembed cache> <model file> <gemma terms file>
 ```
 
-These three folders must already exist. Fetching them automatically is still to do. See `packaging/models.lock.yaml`.
+The first script builds the llama.cpp server into the llama folder. The second script needs that folder, the embedding cache, the model file and the Gemma terms file, which must already exist. Fetching them automatically is still to do. See `packaging/models.lock.yaml`. The app needs macOS 14 or newer.
 
 ## Real data
 

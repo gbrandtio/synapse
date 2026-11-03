@@ -34,8 +34,8 @@ final class EnginePaths {
     required this.python,
     required this.engineDir,
     required this.embeddingDir,
-    required this.ollamaBinary,
-    required this.ollamaModels,
+    required this.llamaBinary,
+    required this.aiModelFile,
   });
 
   /// Finds the parts inside the installed app, beside the executable.
@@ -58,10 +58,10 @@ final class EnginePaths {
           : '$root/python/bin/python3',
       engineDir: '$root/site-packages',
       embeddingDir: '$root/models/embedding',
-      ollamaBinary: isWindows
-          ? '$root/ollama/ollama.exe'
-          : '$root/ollama/ollama',
-      ollamaModels: '$root/models/ollama',
+      llamaBinary: isWindows
+          ? '$root/llama/llama-server.exe'
+          : '$root/llama/llama-server',
+      aiModelFile: '$root/models/ai/gemma-3-1b-Q4_K_M.gguf',
     );
   }
 
@@ -74,11 +74,11 @@ final class EnginePaths {
   /// The folder holding the embedding model.
   final String embeddingDir;
 
-  /// The Ollama program.
-  final String ollamaBinary;
+  /// The llama.cpp server program.
+  final String llamaBinary;
 
-  /// The folder holding the AI model.
-  final String ollamaModels;
+  /// The AI model file.
+  final String aiModelFile;
 }
 
 /// Starts the bundled engine as a child process.
@@ -110,10 +110,11 @@ final class ProcessEngineLauncher implements EngineLauncher {
         environment: {
           'SYNAPSE_DATA_DIR': data.path,
           'SYNAPSE_EMBEDDING_DIR': _paths.embeddingDir,
-          'SYNAPSE_OLLAMA_BIN': _paths.ollamaBinary,
-          'SYNAPSE_OLLAMA_MODELS': _paths.ollamaModels,
+          'SYNAPSE_LLAMA_BIN': _paths.llamaBinary,
+          'SYNAPSE_AI_MODEL_FILE': _paths.aiModelFile,
           'HF_HUB_OFFLINE': '1',
           'HF_HUB_DISABLE_TELEMETRY': '1',
+          'ORT_DISABLE_TELEMETRY': '1',
           'PYTHONDONTWRITEBYTECODE': '1',
           ..._keptEnvironment(),
         },

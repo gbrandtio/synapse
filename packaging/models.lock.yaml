@@ -5,6 +5,7 @@ embedding:
   fastembed_source: qdrant/bge-small-en-v1.5-onnx-q
   licence: MIT
 ai_model:
-  name: gemma3:1b
-  source: registry.ollama.ai/library/gemma3:1b
+  name: gemma-3-1b-Q4_K_M.gguf
+  source: registry.ollama.ai/library/gemma3:1b  # The GGUF layer of this image, used as is.
+  sha256: 2f8c3d137f2496dcb4019e17a50f2974b89c1be1a742db3c80cc86f91cafeeef
   licence: Gemma Terms of Use   # Needs the notice file and use restrictions. See ADR 0017.

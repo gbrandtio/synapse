@@ -8,7 +8,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
 from synapse_engine.adapters.ai.ask_graph import GraphAnswerer
-from synapse_engine.adapters.ai.ollama_process import OllamaUnavailableError
+from synapse_engine.adapters.ai.llama_process import LocalAiUnavailableError
 from synapse_engine.adapters.parsers.pdf import PdfReader
 from synapse_engine.adapters.stores.sqlite_store import SqliteKnowledgeStore
 from synapse_engine.api.app import Services, create_app
@@ -39,7 +39,7 @@ def client(tmp_path, embedder, factory=None, shutdown=lambda: None) -> TestClien
         store=store,
         on_shutdown=shutdown,
     )
-    return TestClient(create_app(services, "secret", (OllamaUnavailableError,)))
+    return TestClient(create_app(services, "secret", (LocalAiUnavailableError,)))
 
 
 @pytest.mark.parametrize(
@@ -97,7 +97,7 @@ def test_unreadable_file_returns_a_friendly_event(tmp_path, embedder) -> None:
 
 def test_local_ai_failure_message_reaches_the_user(tmp_path, embedder) -> None:
     async def broken():
-        raise OllamaUnavailableError("The local AI did not start in time.")
+        raise LocalAiUnavailableError("The local AI did not start in time.")
 
     pdf = write_pdf(tmp_path / "a.pdf", ["how long are backups kept"])
     with client(tmp_path, embedder, broken) as c:

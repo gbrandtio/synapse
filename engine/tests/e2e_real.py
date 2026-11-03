@@ -1,6 +1,6 @@
 """Manual check with the real embedding model and bundled AI. Not part of the normal test run.
 
-Run: uv run python tests/e2e_real.py <embedding dir> <ollama binary> <ollama models dir>
+Run: uv run python tests/e2e_real.py <embedding dir> <llama-server> <model file>
 """
 
 from __future__ import annotations
@@ -11,12 +11,14 @@ import tempfile
 import time
 from pathlib import Path
 
+import httpx
 from fpdf import FPDF
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 from synapse_engine.adapters.ai.ask_graph import GraphAnswerer
 from synapse_engine.adapters.ai.embedder import FastEmbedEmbedder
-from synapse_engine.adapters.ai.ollama_process import OllamaProcess
+from synapse_engine.adapters.ai.llama_process import LlamaProcess
 from synapse_engine.adapters.parsers.pdf import PdfReader
 from synapse_engine.adapters.stores.sqlite_store import SqliteKnowledgeStore
 from synapse_engine.application.ingest import IngestDocument, IngestFinished
@@ -30,7 +32,7 @@ QUESTIONS = [
 ]
 
 
-async def main(embedding_dir: Path, binary: Path, models: Path) -> None:
+async def main(embedding_dir: Path, binary: Path, model_file: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         pdf = FPDF()
@@ -49,15 +51,17 @@ async def main(embedding_dir: Path, binary: Path, models: Path) -> None:
         async for event in IngestDocument(PdfReader(), embedder, store).run(root / "guide.pdf"):
             if isinstance(event, IngestFinished):
                 print("ingested", event.document, f"{time.perf_counter() - started:.1f}s")
-        ollama = OllamaProcess(binary, models)
+        llama = LlamaProcess(binary, model_file, root / "llama.pid", 8192)
 
-        async def model() -> ChatOllama:
-            return ChatOllama(
-                base_url=await ollama.ensure_started(),
-                model="gemma3:1b",
+        async def model() -> ChatOpenAI:
+            return ChatOpenAI(
+                base_url=f"{await llama.ensure_started()}/v1",
+                api_key=SecretStr(llama.api_key),
+                model=model_file.stem,
                 temperature=0.2,
-                num_predict=200,
-                reasoning=False,
+                max_completion_tokens=200,
+                http_async_client=httpx.AsyncClient(trust_env=False, timeout=300),
+                max_retries=0,
             )
 
         answerer = GraphAnswerer(embedder, store, model)
@@ -79,7 +83,7 @@ async def main(embedding_dir: Path, binary: Path, models: Path) -> None:
                             f"Q: {question}\nA: [not found] {event.message} ({time.perf_counter() - started:.2f}s)"
                         )
         finally:
-            ollama.stop()
+            llama.stop()
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-BUNDLED_MODEL = "gemma3:1b"
+BUNDLED_MODEL_FILE = "gemma-3-1b-Q4_K_M.gguf"
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,9 +15,8 @@ class Settings:
 
     data_dir: Path
     embedding_dir: Path
-    ollama_binary: Path
-    ollama_models: Path
-    ai_model: str = BUNDLED_MODEL
+    llama_binary: Path
+    ai_model_file: Path
 
     @property
     def database(self) -> Path:
@@ -31,7 +30,8 @@ class Settings:
         return cls(
             data_dir=data,
             embedding_dir=Path(os.environ.get("SYNAPSE_EMBEDDING_DIR", data / "models/embedding")),
-            ollama_binary=Path(os.environ.get("SYNAPSE_OLLAMA_BIN", data / "ollama/ollama")),
-            ollama_models=Path(os.environ.get("SYNAPSE_OLLAMA_MODELS", data / "models/ollama")),
-            ai_model=os.environ.get("SYNAPSE_AI_MODEL", BUNDLED_MODEL),
+            llama_binary=Path(os.environ.get("SYNAPSE_LLAMA_BIN", data / "llama/llama-server")),
+            ai_model_file=Path(
+                os.environ.get("SYNAPSE_AI_MODEL_FILE", data / "models/ai" / BUNDLED_MODEL_FILE)
+            ),
         )

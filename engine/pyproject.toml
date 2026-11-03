@@ -11,8 +11,9 @@ dependencies = [
   "pydantic>=2,<3",
   "langgraph==1.2.19",
   "langchain-core>=1,<2",
-  "langchain-ollama>=1,<2",
+  "langchain-openai>=1,<2",
   "fastembed==0.9.1",
+  "onnxruntime==1.28.0",  # 1.29 and later send telemetry to Microsoft by default. See ADR 0019.
   "pypdfium2==5.14.0",
   "sqlite-vec==0.1.9",
   "numpy>=2,<3",
@@ -83,4 +84,4 @@ layers = [
 name = "Domain and application import no frameworks"
 type = "forbidden"
 source_modules = ["synapse_engine.domain", "synapse_engine.application"]
-forbidden_modules = ["fastapi", "langgraph", "langchain_core", "langchain_ollama", "fastembed", "pypdfium2", "sqlite_vec"]
+forbidden_modules = ["fastapi", "langgraph", "langchain_core", "langchain_openai", "fastembed", "pypdfium2", "sqlite_vec"]

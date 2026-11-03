@@ -1,15 +1,20 @@
 #!/bin/zsh
 # Build a Synapse Complete .dmg for this Mac's architecture.
 #
-#   packaging/build_macos.sh <ollama dir> <fastembed cache> <ollama models dir>
+#   packaging/build_macos.sh <llama dir> <fastembed cache> <model file> <gemma terms file>
 #
-# The three folders hold the trimmed Ollama and the bundled models. CI will fetch and verify
-# them from packaging/models.lock.yaml. This stops if the result is above the 1.9 GiB limit.
+# The llama folder comes from build_llama_macos.sh. CI will fetch and verify the models from
+# packaging/models.lock.yaml. This stops if the result is above the 1.9 GiB limit.
 set -euo pipefail
 setopt null_glob
 ROOT=${0:A:h:h}
-OLLAMA_DIR=${1:A}; EMBEDDING_DIR=${2:A}; MODELS_DIR=${3:A}
+LLAMA_DIR=${1:A}; EMBEDDING_DIR=${2:A}; MODEL_FILE=${3:A}; GEMMA_TERMS=${4:A}
 LIMIT_BYTES=$((1900 * 1024 * 1024 * 1024 / 1000))
+MIN_MACOS=14.0  # sqlite-vec and onnxruntime have no wheels for anything older.
+
+MODEL_SHA=$(sed -n 's/^ *sha256: //p' "$ROOT/packaging/models.lock.yaml")
+[[ "$(shasum -a 256 "$MODEL_FILE" | cut -d' ' -f1)" == "$MODEL_SHA" ]] || { echo "Model file does not match models.lock.yaml"; exit 1; }
+[[ "$(head -c 18 "$GEMMA_TERMS")" == "Gemma Terms of Use" ]] || { echo "Not the Gemma terms: $GEMMA_TERMS"; exit 1; }
 
 cd "$ROOT/apps/desktop"
 flutter build macos --release
@@ -27,7 +32,9 @@ rm -rf "$RES"/python/lib/python3.13/test "$RES"/python/lib/python3.13/idlelib \
 # The engine and its locked dependencies, without development tools.
 cd "$ROOT/engine"
 uv export --quiet --frozen --no-dev --no-emit-project --no-hashes -o "$RES/requirements.txt"
-uv pip install --quiet --python "$RES/python/bin/python3" --target "$RES/site-packages" \
+# The platform and target choose wheels for our minimum macOS, not for this computer's version.
+MACOSX_DEPLOYMENT_TARGET=$MIN_MACOS uv pip install --quiet --python "$RES/python/bin/python3" \
+  --python-platform aarch64-apple-darwin --target "$RES/site-packages" \
   --no-compile -r "$RES/requirements.txt"
 cp -R src/synapse_engine "$RES/site-packages/synapse_engine"
 rm -rf "$RES/requirements.txt" "$RES/site-packages/bin"  # bin holds scripts naming this computer's Python
@@ -35,11 +42,28 @@ find "$RES" -type d -name __pycache__ -prune -exec rm -rf {} +
 # Compiled now, because the signed app must not write into itself and each launch would pay for it.
 "$RES/python/bin/python3" -I -m compileall -q "$RES/site-packages" "$RES/python/lib/python3.13" >/dev/null || true
 
-cp -R "$OLLAMA_DIR" "$RES/ollama"
+cp -R "$LLAMA_DIR" "$RES/llama"
 mkdir -p "$RES/models/embedding"
 # -L copies real files, because the model cache keeps its weights behind symlinks.
 cp -RL "$EMBEDDING_DIR"/models--Qdrant--bge-small-en-v1.5-onnx-Q "$RES/models/embedding/"
-cp -R "$MODELS_DIR" "$RES/models/ollama"
+mkdir -p "$RES/models/ai"
+cp "$MODEL_FILE" "$RES/models/ai/gemma-3-1b-Q4_K_M.gguf"
+# ADR 0017: Gemma may be redistributed only with its terms and this notice.
+cp "$GEMMA_TERMS" "$RES/models/ai/GEMMA_TERMS_OF_USE.txt"
+cp "$ROOT/packaging/GEMMA_NOTICE.txt" "$RES/models/ai/NOTICE.txt"
+
+# ADR 0019: nothing bundled may carry Microsoft's telemetry address.
+if find "$RES/site-packages" "$RES/python/lib" -type f \( -name '*.so' -o -name '*.dylib' \) -print0 | xargs -0 grep -l 'events.data.microsoft.com'; then
+  echo "A bundled library contains telemetry. See ADR 0019."; exit 1
+fi
+
+# Nothing bundled may need a newer macOS than the app says it supports.
+find "$RES" -type f \( -name '*.so' -o -name '*.dylib' -o -name llama-server \) | while read -r library; do
+  needs=$(otool -l "$library" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit}')
+  if [[ -n "$needs" && "$(printf '%s\n%s\n' "$MIN_MACOS" "$needs" | sort -t. -k1,1n -k2,2n | tail -1)" != "$MIN_MACOS" ]]; then
+    echo "$library needs macOS $needs, above $MIN_MACOS"; exit 1
+  fi
+done
 
 # Every link must stay inside the bundle, or the app only works on the computer that built it.
 find "$RES" -type l | while read -r link; do

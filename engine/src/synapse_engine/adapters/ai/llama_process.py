@@ -1,9 +1,10 @@
-"""Runs the bundled Ollama as a private child process."""
+"""Runs the bundled llama.cpp server as a private child process."""
 
 from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 import signal
 import socket
 import subprocess
@@ -11,7 +12,8 @@ from pathlib import Path
 
 import httpx
 
-_START_TIMEOUT_SECONDS = 30
+_START_TIMEOUT_SECONDS = 120  # The model loads before the server reports ready.
+_IDLE_SECONDS = 300  # Then it frees the model's memory, and reloads it on the next question.
 _PROXY_VARIABLES = {
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -30,27 +32,33 @@ def _free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-class OllamaUnavailableError(Exception):
+class LocalAiUnavailableError(Exception):
     """The local AI could not start. The message is safe to show the user."""
 
 
-class OllamaProcess:
-    """Starts Ollama on a private port with private models, on first use.
+class _StartupCrashError(Exception):
+    """The server exited before it became ready."""
 
-    If the engine is killed outright, Ollama keeps running. Its process ID is saved in
+
+class LlamaProcess:
+    """Starts the server on a private port, on first use, with a key only this engine knows.
+
+    If the engine is killed outright, the server keeps running. Its process ID is saved in
     `pid_file`, so the next start can stop it. Windows does not do this yet.
     """
 
-    def __init__(self, binary: Path, models_dir: Path, pid_file: Path) -> None:
+    def __init__(self, binary: Path, model_file: Path, pid_file: Path, context_tokens: int) -> None:
+        self.api_key = secrets.token_urlsafe(32)
         self._binary = binary
-        self._models_dir = models_dir
+        self._model_file = model_file
         self._pid_file = pid_file
+        self._context_tokens = context_tokens
         self._process: subprocess.Popen[bytes] | None = None
         self._base_url: str | None = None
         self._lock = asyncio.Lock()
 
     async def ensure_started(self) -> str:
-        """Return the base URL, starting Ollama if it is not already running."""
+        """Return the base URL, starting the server if it is not already running."""
         async with self._lock:
             if self._process is not None and self._process.poll() is None and self._base_url:
                 return self._base_url
@@ -58,22 +66,50 @@ class OllamaProcess:
             return await self._start()
 
     async def _start(self) -> str:
-        if not await asyncio.to_thread(self._binary.is_file):
-            raise OllamaUnavailableError("The local AI is missing from this installation.")
+        parts = (self._binary, self._model_file)
+        if not all(await asyncio.gather(*(asyncio.to_thread(p.is_file) for p in parts))):
+            raise LocalAiUnavailableError("The local AI is missing from this installation.")
         await asyncio.to_thread(self.stop_leftover)
+        try:
+            return await self._launch()
+        except _StartupCrashError:
+            # A macOS version can reject the GPU code, which stops the server at once.
+            try:
+                return await self._launch(gpu=False)
+            except _StartupCrashError as error:
+                raise LocalAiUnavailableError(str(error)) from error
+
+    async def _launch(self, *, gpu: bool = True) -> str:
         port = _free_port()
         environment = {k: v for k, v in os.environ.items() if k not in _PROXY_VARIABLES}
-        environment.update(
-            OLLAMA_HOST=f"127.0.0.1:{port}",
-            OLLAMA_MODELS=str(self._models_dir),
-            OLLAMA_NO_CLOUD="1",
-        )
+        # Not an argument, so process lists don't show it.
+        environment["LLAMA_API_KEY"] = self.api_key
+        if not gpu:
+            # `--device none` is not enough, because the GPU code is built before it is read.
+            environment["GGML_METAL_DEVICES"] = "0"
         self._process = subprocess.Popen(  # noqa: S603, ASYNC220 - fixed binary, no shell, returns at once
-            [str(self._binary), "serve"],
+            [
+                str(self._binary),
+                "--model",
+                str(self._model_file),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--ctx-size",
+                str(self._context_tokens),
+                "--parallel",  # One slot, or the context is shared out and each gets less.
+                "1",
+                "--jinja",
+                "--no-webui",
+                "--offline",
+                "--sleep-idle-seconds",
+                str(_IDLE_SECONDS),
+            ],
             env=environment,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            # Its own process group, so stopping it also stops the runner holding the model.
+            # Its own process group, which is what `_signal` and `stop_leftover` signal.
             start_new_session=os.name == "posix",
         )
         await asyncio.to_thread(self._pid_file.write_text, str(self._process.pid))
@@ -90,17 +126,17 @@ class OllamaProcess:
         async with httpx.AsyncClient(timeout=2, trust_env=False) as client:
             for _ in range(_START_TIMEOUT_SECONDS * 4):
                 if self._process is None or self._process.poll() is not None:
-                    raise OllamaUnavailableError("The local AI stopped while starting.")
+                    raise _StartupCrashError("The local AI stopped while starting.")
                 try:
-                    if (await client.get(f"{base_url}/api/version")).is_success:
+                    if (await client.get(f"{base_url}/health")).is_success:
                         return
                 except httpx.TransportError:
                     pass
                 await asyncio.sleep(0.25)
-        raise OllamaUnavailableError("The local AI did not start in time.")
+        raise LocalAiUnavailableError("The local AI did not start in time.")
 
     def stop_leftover(self) -> None:
-        """Stop an Ollama left by an earlier engine, after checking the ID is still that program."""
+        """Stop a server left by an earlier engine, after checking the ID is still that program."""
         if os.name != "posix" or not self._pid_file.is_file():
             return
         try:
@@ -111,14 +147,14 @@ class OllamaProcess:
                 text=True,
                 check=False,
             ).stdout
-            if f"{self._binary} serve" in command:
+            if f"{self._binary} --model" in command:
                 os.killpg(pid, signal.SIGKILL)
         except (ValueError, ProcessLookupError, PermissionError):
             pass
         self._pid_file.unlink(missing_ok=True)
 
     def stop(self) -> None:
-        """Stop Ollama if it is running."""
+        """Stop the server if it is running."""
         self._base_url = None
         process, self._process = self._process, None
         self._pid_file.unlink(missing_ok=True)

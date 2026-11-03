@@ -1,7 +1,7 @@
 """Run the assembled bundle as the app does: token on stdin, port on stdout, then a real question.
 
 Run with this Python's -I flag, passing the bundle's engine folder, a PDF and a data folder. It
-reports any connection the engine or Ollama opens to another computer.
+reports any connection the engine or the AI server opens to another computer.
 """
 from __future__ import annotations
 
@@ -15,11 +15,18 @@ import urllib.request
 from pathlib import Path
 
 res, pdf, data = (Path(a) for a in sys.argv[1:4])
+idle_seconds = int(sys.argv[4]) if len(sys.argv) > 4 else 20  # Telemetry first fired after 9 seconds.
+# Records every DNS lookup and connection, because a polling check can miss a short one. This needs
+# the internet available to mean anything: a blocked lookup is logged, but a library may only try
+# when it is online.
+netlog = data / "netlog.dylib"
+netlog_file = data / "netlog.txt"
+subprocess.run(["clang", "-shared", "-w", "-o", str(netlog), str(Path(__file__).with_name("netlog.c"))], check=True)
 QUESTIONS = ["How long are backups kept?", "Which firmware fixes the PX-400 printer?", "What is the capital of Australia?"]
 env = {
-    "PATH": "/usr/bin:/bin", "HOME": str(data), "SYNAPSE_DATA_DIR": str(data),
-    "SYNAPSE_EMBEDDING_DIR": str(res / "models/embedding"), "SYNAPSE_OLLAMA_BIN": str(res / "ollama/ollama"),
-    "SYNAPSE_OLLAMA_MODELS": str(res / "models/ollama"), "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "PYTHONDONTWRITEBYTECODE": "1",
+    "PATH": "/usr/bin:/bin", "DYLD_INSERT_LIBRARIES": str(netlog), "NETLOG_FILE": str(netlog_file), "HOME": str(data), "SYNAPSE_DATA_DIR": str(data),
+    "SYNAPSE_EMBEDDING_DIR": str(res / "models/embedding"), "SYNAPSE_LLAMA_BIN": str(res / "llama/llama-server"),
+    "SYNAPSE_AI_MODEL_FILE": str(res / "models/ai/gemma-3-1b-Q4_K_M.gguf"), "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "ORT_DISABLE_TELEMETRY": "1", "PYTHONDONTWRITEBYTECODE": "1",
     # A closed port. If anything used these, every answer would fail.
     "HTTP_PROXY": "http://127.0.0.1:9", "ALL_PROXY": "http://127.0.0.1:9", "http_proxy": "http://127.0.0.1:9",
 }
@@ -72,10 +79,18 @@ for q in QUESTIONS:
     text = "".join(d["text"] for k, d in ev if k == "token")
     other = [(k, d if k != "citations" else [(c["document_name"], c["page"], c["is_inferred"]) for c in d["citations"]]) for k, d in ev if k != "token"]
     print(f"{time.perf_counter() - t:.1f}s Q: {q}\n   A: {text.strip()}\n   {other}")
-time.sleep(5)
+time.sleep(idle_seconds)
 stop.set()
 p.stdin.close()
 code = p.wait(timeout=20)
 time.sleep(1)
 left = subprocess.run(["pgrep", "-f", str(res)], capture_output=True, text=True).stdout.split()
 print("engine exit code", code, "| processes left", left, "| outside connections", sorted(outside) or "none seen")
+LOOPBACK = ("127.0.0.1", "localhost", "[::1]", "::1", "unix:")
+logged = netlog_file.read_text().splitlines() if netlog_file.exists() else []
+assert logged, "The network log is empty, so this run proves nothing."
+foreign = sorted({" ".join(line.split()[1:]) for line in logged if not line.split()[3].startswith(LOOPBACK)})
+print(f"network log: {len(logged)} calls, outside this computer: {foreign or 'none'}")
+leftover_telemetry = Path(data, "Library/Application Support/Microsoft")
+if foreign or outside or leftover_telemetry.exists():
+    sys.exit("FAILED: something tried to leave this computer.")

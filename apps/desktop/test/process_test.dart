@@ -15,8 +15,8 @@ Future<ProcessEngineLauncher> _launcherFor(String mainBody) async {
       python: 'python3',
       engineDir: root.path,
       embeddingDir: '/x',
-      ollamaBinary: '/x',
-      ollamaModels: '/x',
+      llamaBinary: '/x',
+      aiModelFile: '/x',
     ),
     dataDir: () async => root,
   );
@@ -29,8 +29,8 @@ void main() {
         python: '/nonexistent/python3',
         engineDir: '/nonexistent',
         embeddingDir: '/nonexistent',
-        ollamaBinary: '/nonexistent',
-        ollamaModels: '/nonexistent',
+        llamaBinary: '/nonexistent',
+        aiModelFile: '/nonexistent',
       ),
       dataDir: () async => Directory.systemTemp,
     );
@@ -74,6 +74,6 @@ def main():
     final paths = EnginePaths.bundled();
     expect(paths.python, contains('python'));
     expect(paths.embeddingDir, endsWith('models/embedding'));
-    expect(paths.ollamaModels, endsWith('models/ollama'));
+    expect(paths.aiModelFile, endsWith('.gguf'));
   });
 }
